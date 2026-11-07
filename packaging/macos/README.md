@@ -1,6 +1,6 @@
 # macOS packaging
 
-Run from the repository root. Requires macOS 15+, Xcode Command Line Tools, Rust/Cargo,
+Run from the repository root. Requires macOS 15+, Xcode with the Metal toolchain, Rust/Cargo,
 and a usable Developer ID Application certificate in Keychain.
 
 ```sh
@@ -34,7 +34,7 @@ See [service commands](../../src/desktop_service/README.md) for runtime and perm
 This submits the app to Apple, staples the approval ticket, and verifies the result.
 Without `--notarize`, the build is signed only. Notarization does not grant desktop permissions.
 
-The default Keychain profile is `apple-notary`. Create it once if needed:
+The default Keychain profile is `apple-notary`. Create it once if needed.
 
 ```sh
 xcrun notarytool store-credentials apple-notary

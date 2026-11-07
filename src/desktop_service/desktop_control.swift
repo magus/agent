@@ -6,13 +6,32 @@ import IOKit
 
 final class desktop_control {
     private var selected_window: window_target?
+    private var capture_ready = false
     private let native = native_calls.shared
 
     func execute(_ request: [String: Any], output_dir: URL) throws -> [String: Any] {
+        var completed = false
+        defer {
+            if !completed {
+                capture_ready = false
+                selected_window = nil
+            }
+        }
         try require_locked()
+        try require_permissions()
         let started = ProcessInfo.processInfo.systemUptime
         guard let operation = request["operation"] as? String else {
             throw control_error("Missing operation")
+        }
+
+        if operation != "capture" {
+            guard capture_ready else { throw control_error("Capture the desktop before sending input") }
+            // Confirm capture still works before dispatching input. Do not retain this extra frame.
+            let observation = try capture(output_dir)
+            if let path = observation["path"] as? String {
+                try? FileManager.default.removeItem(atPath: path)
+            }
+            try require_locked()
         }
 
         var result: [String: Any] = ["operation": operation]
@@ -48,7 +67,24 @@ final class desktop_control {
         result["dispatch_seconds"] = ProcessInfo.processInfo.systemUptime - started
         Thread.sleep(forTimeInterval: 0.15)
         result["capture"] = try capture(output_dir)
+        try require_locked()
         result["locked"] = true
+        capture_ready = true
+        completed = true
+        return result
+    }
+
+    // Only the local setup window calls this. Socket requests retain their lock guard.
+    func capture_for_setup(_ output_dir: URL) throws -> [String: Any] {
+        try require_unlocked()
+        try require_permissions()
+        let result = try capture(output_dir)
+        do {
+            try require_unlocked()
+        } catch {
+            if let path = result["path"] as? String { try? FileManager.default.removeItem(atPath: path) }
+            throw error
+        }
         return result
     }
 
@@ -206,6 +242,7 @@ final class desktop_control {
     }
 
     private func capture(_ output_dir: URL) throws -> [String: Any] {
+        try require_permissions()
         let display = CGMainDisplayID()
         let bounds = CGDisplayBounds(display)
         let saver_level = CGWindowLevelForKey(.screenSaverWindow)
@@ -344,6 +381,30 @@ private func require_locked() throws {
                                                   kCFAllocatorDefault, 0)?.takeRetainedValue()
     guard property as? Bool == true else {
         throw control_error("Expected locked console")
+    }
+}
+
+private func require_unlocked() throws {
+    guard let session = CGSessionCopyCurrentDictionary() as? [String: Any],
+          session["CGSSessionScreenIsLocked"] as? Bool != true else {
+        throw control_error("Unlock this Mac to check the capture preview")
+    }
+    let root = IORegistryGetRootEntry(kIOMainPortDefault)
+    guard root != 0 else { throw control_error("Cannot read console lock state") }
+    defer { IOObjectRelease(root) }
+    let property = IORegistryEntryCreateCFProperty(root, "IOConsoleLocked" as CFString,
+                                                  kCFAllocatorDefault, 0)?.takeRetainedValue()
+    guard property as? Bool == false else {
+        throw control_error("Unlock this Mac to check the capture preview")
+    }
+}
+
+private func require_permissions() throws {
+    guard AXIsProcessTrusted() else {
+        throw control_error("Accessibility is unavailable. Open Agent setup to check permissions.")
+    }
+    guard CGPreflightScreenCaptureAccess() else {
+        throw control_error("Screen Recording is unavailable. Open Agent setup to check permissions.")
     }
 }
 

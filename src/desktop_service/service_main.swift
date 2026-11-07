@@ -38,6 +38,12 @@ struct service_main {
                                                      attributes: [.posixPermissions: 0o700])
             try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: output_dir.path)
             switch argument_list[1] {
+            case "--setup-capture":
+                emit(["ok": true, "capture": try controller.capture_for_setup(output_dir)])
+            case "--open-accessibility":
+                try open_settings("Privacy_Accessibility")
+            case "--open-screen-recording":
+                try open_settings("Privacy_ScreenCapture")
             case "--serve":
                 try local_socket.serve(socket_path) { request in
                     let result = handle(request, controller: controller, output_dir: output_dir)
@@ -72,6 +78,12 @@ struct service_main {
             emit(["ok": false, "error": String(describing: error)])
             exit(1)
         }
+    }
+
+    private static func open_settings(_ pane: String) throws {
+        let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?\(pane)")!
+        guard NSWorkspace.shared.open(url) else { throw control_error("Could not open System Settings") }
+        emit(["ok": true])
     }
 
     private static func handle(

@@ -1,8 +1,8 @@
 # Capture approval setup
 
-Status: agreed design for Agent.app; not implemented yet. For the first version, use an interactive
-setup flow instead of requiring device management or waiting for Apple's Persistent Content
-Capture entitlement approval.
+The Rust app now provides a GPUI setup window. It shows permission status, opens Settings, and
+asks the user to confirm a real capture preview. This first version uses interactive setup instead
+of device management or Apple's Persistent Content Capture entitlement.
 
 The goal is to handle the initial capture confirmation while the user is present, before unattended
 work begins. The ordinary Screen Recording grant and the extra confirmation for direct capture are
@@ -21,8 +21,8 @@ separate checks. Accessibility is also required for desktop input.
 6. Mark capture setup ready only after verification succeeds. If approval is declined or capture
    remains unusable, keep setup incomplete and offer another attempt when the user is ready.
 
-The current proof deliberately rejects unlocked capture and input. Implementation must provide a
-bounded setup capture mode for the interactive step without removing the locked-execution checks.
+Normal service requests reject unlocked capture and input. A separate setup command provides
+capture only when the Mac is unlocked, without removing the locked-execution checks.
 After setup, verify capture and input again with the Mac locked.
 
 ### During unattended work
@@ -44,5 +44,22 @@ this setup flow does not guarantee permanent suppression.
 
 Verify initial approval, decline and retry, already-approved startup, app restart, a consistently
 signed update, and locked operation. Also verify that loss of usable capture pauses desktop actions
-without replaying input. Keep failure detection conservative: a sparse desktop image alone does not
+without replaying input. Keep failure detection conservative. A sparse desktop image alone does not
 prove a permission failure.
+
+### Verified
+
+- The user enabled both local grants and accepted the additional capture dialog.
+- Preview, rejection, retry, confirmation, restart, and signed updates retained working capture.
+- Closing setup kept the service running. Reopening Agent restored the setup window.
+- The mini retained both grants after the GPUI update. Locked capture, clicks, keys, and window
+  movement passed. A stale target failed before input, and further input required a new capture.
+- Async setup changes redraw without another click, including on the locked mini.
+
+### Remaining checks
+
+- Declining the macOS capture dialog and revoking a grant have not been tested. Rejecting the app's
+  preview was tested, but it is a separate action.
+- A future agent loop must request user attention when capture fails. The service currently returns
+  the failure, clears capture readiness, and refuses further input until a new capture succeeds.
+- Recurring macOS confirmation remains possible. The saved confirmation does not suppress it.

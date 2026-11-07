@@ -39,6 +39,7 @@ open dist/Agent.app
 1. Open **System Settings → Privacy & Security**.
 2. Add `Agent.app` to **Accessibility** and **Screen & System Audio Recording** and enable both.
 3. Quit and reopen `Agent.app`
+4. Choose **Check capture** in Agent and confirm that the preview shows your app windows.
 
 Allow the additional screen-capture confirmation if macOS shows it when capturing.
 Lock the Mac before sending desktop-control requests; the current service rejects unlocked use.

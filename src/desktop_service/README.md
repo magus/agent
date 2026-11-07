@@ -8,8 +8,8 @@ For the signed app containing the Rust launcher and this helper, see
 [Build Agent.app](../../packaging/macos/README.md). Run the service through that app so it uses
 Agent's permission identity.
 
-The planned Agent.app onboarding and recovery behavior is documented in
-[capture approval setup](../../docs/plans/capture-approval/README.md). It is not implemented in this service.
+Agent's GPUI setup window shows permission status and a capture preview. Its plan and remaining
+checks are in [capture approval setup](../../docs/plans/capture-approval/README.md).
 
 ## Install and run
 
@@ -25,6 +25,9 @@ requests. The socket is not a sandbox against that user's apps.
 To stop the app and service, create a file named `stop` in the runtime directory. Remove it before
 launching again. Terminating the Rust process also stops its helper. It does not restart a crashed
 helper automatically.
+
+Closing the setup window leaves the service running. Reopen Agent to show it again, or use
+**Agent → Set up Agent**. **Quit Agent** stops both processes.
 
 For permission diagnostics, run `open -n /path/to/Agent.app --args --permissions` and read
 `service.log` in the runtime directory. This reports Accessibility and Screen Recording grants
@@ -46,6 +49,10 @@ runtime_dir="$HOME/Library/Application Support/Agent"
 Each response includes a fresh image path and timing. `ok: true` means dispatch and capture succeeded.
 It does not prove the intended UI effect. Inspect the image. An error may occur after input already
 acted, so never retry blindly. Animations can outlast the immediate capture; request another frame.
+
+Capture once before the first input after startup or a failed action. The service checks permission
+grants and obtains another capture before dispatching input. A failure clears the selected window;
+after resolving it, capture again and click the intended window before sending keys.
 
 ```json
 {"id":"observe","operation":"capture"}
