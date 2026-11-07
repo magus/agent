@@ -1,19 +1,20 @@
-# Native desktop service
+# Desktop service
 
-A Swift desktop-control service with no package dependencies. It runs locally on the mini and
+The Rust wrapper in `service.rs` launches and manages the Swift helper in `swift/`.
+The Swift helper has no package dependencies. It runs locally on the mini and
 accepts screenshots, mouse coordinates, keys, and bulk text. It contains no app-specific controller
 branches or accessibility-tree queries. It is the locked-desktop proof, not a model or messaging loop.
 
 For the signed app containing the Rust launcher and this helper, see
-[Build Agent.app](../../packaging/macos/README.md). Run the service through that app so it uses
+[Build Agent.app](../../../../packaging/macos/README.md). Run the service through that app so it uses
 Agent's permission identity.
 
 Agent's GPUI setup window shows permission status and a capture preview. Its plan and remaining
-checks are in [capture approval setup](../../docs/plans/capture-approval/README.md).
+checks are in [capture approval setup](../../../../docs/plans/capture-approval/README.md).
 
 ## Install and run
 
-Build and launch Agent.app using the [app build instructions](../../packaging/macos/README.md).
+Build and launch Agent.app using the [app build instructions](../../../../packaging/macos/README.md).
 Its Rust executable starts this Swift service in the logged-in graphical session.
 Grant Accessibility and Screen Recording to Agent. After reboot, login is still required to create
 that desktop. Launch at login is not implemented yet.
@@ -27,7 +28,7 @@ launching again. Terminating the Rust process also stops its helper. It does not
 helper automatically.
 
 Closing the setup window leaves the service running. Reopen Agent to show it again, or use
-**Agent → Set up Agent**. **Quit Agent** stops both processes.
+**Agent → Desktop permissions…**. **Quit Agent** stops both processes.
 
 For permission diagnostics, run `open -n /path/to/Agent.app --args --permissions` and read
 `service.log` in the runtime directory. This reports Accessibility and Screen Recording grants
@@ -134,4 +135,4 @@ function removed from the current Swift SDK interface. OS upgrades require retes
 signatures were checked against the [CUA input source](https://github.com/trycua/cua/tree/main/libs/cua-driver/rust/crates/platform-macos/src/input).
 
 Exact evidence, corrections, and remaining work are in the
-[native service log](../../logs/2026-11-03-22-07-native-desktop-agent.md).
+[native service log](../../../../logs/2026-11-03-22-07-native-desktop-agent.md).

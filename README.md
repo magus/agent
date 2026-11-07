@@ -2,7 +2,7 @@
 
 macOS desktop control written in [rust](https://rust-lang.org/) and [swift](https://www.swift.org/).
 
-> [see how the desktop service works](src/desktop_service/README.md)
+> [see how the desktop service works](src/agent/app/desktop_service/README.md)
 
 ## setup
 

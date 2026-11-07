@@ -23,7 +23,7 @@ Keep these identifiers and the signing identity stable across builds. Install an
 copy at a stable location before granting permissions. Building does not update an installed copy.
 
 Launch through `open` so macOS attributes permission use to Agent.app.
-See [service commands](../../src/desktop_service/README.md) for runtime and permission diagnostics.
+See [service commands](../../src/agent/app/desktop_service/README.md) for runtime and permission diagnostics.
 
 ## Notarization
 

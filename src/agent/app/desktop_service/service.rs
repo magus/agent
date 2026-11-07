@@ -1,26 +1,23 @@
 use serde::Deserialize;
 use serde_json::Value;
-use std::fs::{self, OpenOptions};
+use std::fs::OpenOptions;
 use std::io;
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::OpenOptionsExt;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
-pub(crate) struct DesktopService {
+pub(super) struct DesktopService {
     helper: PathBuf,
-    pub(crate) runtime_dir: PathBuf,
+    pub(super) runtime_dir: PathBuf,
     child: Mutex<Option<Child>>,
 }
 
 impl DesktopService {
-    pub(crate) fn new() -> io::Result<Self> {
+    pub(super) fn new() -> io::Result<Self> {
         let executable = std::env::current_exe()?;
         let helper = executable.parent().unwrap().join("desktop_service");
-        let home = std::env::var_os("HOME").ok_or_else(|| io::Error::other("HOME is missing"))?;
-        let runtime_dir = PathBuf::from(home).join("Library/Application Support/Agent");
-        fs::create_dir_all(&runtime_dir)?;
-        fs::set_permissions(&runtime_dir, fs::Permissions::from_mode(0o700))?;
+        let runtime_dir = crate::app::core::runtime_dir()?;
 
         Ok(Self {
             helper,
@@ -29,7 +26,7 @@ impl DesktopService {
         })
     }
 
-    pub(crate) fn start(&self) -> io::Result<()> {
+    pub(super) fn start(&self) -> io::Result<()> {
         let log = OpenOptions::new()
             .create(true)
             .append(true)
@@ -46,11 +43,11 @@ impl DesktopService {
         Ok(())
     }
 
-    pub(crate) fn permissions(&self) -> io::Result<Permissions> {
+    pub(super) fn permissions(&self) -> io::Result<Permissions> {
         serde_json::from_value(self.call("--permissions")?).map_err(io::Error::other)
     }
 
-    pub(crate) fn call(&self, mode: &str) -> io::Result<Value> {
+    pub(super) fn call(&self, mode: &str) -> io::Result<Value> {
         let output = Command::new(&self.helper)
             .arg(&self.runtime_dir)
             .arg(mode)
@@ -70,14 +67,14 @@ impl DesktopService {
         Ok(response)
     }
 
-    pub(crate) fn stop(&self) {
+    pub(super) fn stop(&self) {
         if let Some(mut child) = self.child.lock().unwrap().take() {
             let _ = child.kill();
             let _ = child.wait();
         }
     }
 
-    pub(crate) fn stopped(&self) -> io::Result<bool> {
+    pub(super) fn stopped(&self) -> io::Result<bool> {
         let mut child = self.child.lock().unwrap();
         match child.as_mut() {
             Some(child) => Ok(child.try_wait()?.is_some()),
@@ -93,13 +90,13 @@ impl Drop for DesktopService {
 }
 
 #[derive(Clone, Default, Deserialize, PartialEq, Eq)]
-pub(crate) struct Permissions {
-    pub(crate) accessibility: bool,
-    pub(crate) screen_recording: bool,
+pub(super) struct Permissions {
+    pub(super) accessibility: bool,
+    pub(super) screen_recording: bool,
 }
 
 impl Permissions {
-    pub(crate) fn granted(&self) -> bool {
+    pub(super) fn granted(&self) -> bool {
         self.accessibility && self.screen_recording
     }
 }

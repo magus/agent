@@ -1,4 +1,4 @@
-use crate::desktop_service::{DesktopService, Permissions};
+use super::service::{DesktopService, Permissions};
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::{ActiveTheme, Disableable};
 use gpui_kit::{prelude::*, *};
@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-pub(crate) struct PermissionSetup {
+pub(super) struct PermissionSetup {
     service: Arc<DesktopService>,
     permissions: Option<Permissions>,
     busy: bool,
@@ -19,7 +19,40 @@ pub(crate) struct PermissionSetup {
 }
 
 impl PermissionSetup {
-    pub(crate) fn new(service: Arc<DesktopService>, cx: &mut Context<Self>) -> Self {
+    pub(super) fn open(service: Arc<DesktopService>, cx: &mut App) {
+        if crate::app::core::window::activate(cx.default_global::<SetupWindow>().0, cx) {
+            return;
+        }
+        let options = WindowOptions {
+            window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
+                None,
+                size(px(560.), px(430.)),
+                cx,
+            ))),
+            titlebar: Some(TitlebarOptions {
+                title: Some("Agent".into()),
+                ..Default::default()
+            }),
+            is_resizable: false,
+            ..Default::default()
+        };
+        let result = gpui_kit::open_window(options, cx, |_, cx| {
+            cx.new(|cx| PermissionSetup::new(service, cx))
+        });
+        match result {
+            Ok((handle, view)) => {
+                cx.global_mut::<SetupWindow>().0 = Some(handle);
+                crate::app::core::window::observe(handle, &view, cx);
+            }
+            Err(error) => {
+                eprintln!("Could not open Agent setup. {error}");
+                cx.quit();
+            }
+        }
+        cx.activate(true);
+    }
+
+    fn new(service: Arc<DesktopService>, cx: &mut Context<Self>) -> Self {
         let saved_confirmation = read_confirmation(&service.runtime_dir);
         let poll_service = service.clone();
         let poll_task = cx.spawn(async move |view, cx| {
@@ -357,3 +390,8 @@ fn read_confirmation(runtime_dir: &std::path::Path) -> bool {
     };
     record["version"] == 1 && record["confirmed_at"].as_u64().is_some()
 }
+
+#[derive(Default)]
+struct SetupWindow(Option<AnyWindowHandle>);
+
+impl Global for SetupWindow {}

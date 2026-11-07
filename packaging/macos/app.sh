@@ -91,9 +91,9 @@ cargo build --locked --release
 swiftc -O \
     -target "$(uname -m)-apple-macosx${MACOSX_DEPLOYMENT_TARGET}" \
     -module-cache-path "$REPO_ROOT/.build/module-cache" \
-    "$REPO_ROOT/src/desktop_service/service_main.swift" \
-    "$REPO_ROOT/src/desktop_service/desktop_control.swift" \
-    "$REPO_ROOT/src/desktop_service/local_socket.swift" \
+    "$REPO_ROOT/src/agent/app/desktop_service/swift/service_main.swift" \
+    "$REPO_ROOT/src/agent/app/desktop_service/swift/desktop_control.swift" \
+    "$REPO_ROOT/src/agent/app/desktop_service/swift/local_socket.swift" \
     -o "$REPO_ROOT/.build/desktop_service"
 
 package_id="$(cargo pkgid --locked)"
