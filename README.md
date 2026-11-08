@@ -44,6 +44,12 @@ open dist/Agent.app
 Allow the additional screen-capture confirmation if macOS shows it when capturing.
 Lock the Mac before sending desktop-control requests; the current service rejects unlocked use.
 
+## devices
+
+Use **Agent → Devices** to pair Macs over Tailscale and revoke access.
+Pairing is directional and requires approval on the target.
+See [direct tool calls](docs/plans/agent-core/tools.md) to run commands and desktop actions without a model.
+
 ## test
 
 ```sh

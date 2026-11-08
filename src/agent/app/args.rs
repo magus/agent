@@ -4,6 +4,7 @@ use std::io;
 pub(crate) enum Args {
     Setup,
     ChatGpt,
+    Devices,
     Permissions,
     Help,
 }
@@ -15,6 +16,7 @@ impl Args {
             [argument] => match argument.as_str() {
                 "--setup" => Ok(Self::Setup),
                 "--chatgpt" => Ok(Self::ChatGpt),
+                "--devices" => Ok(Self::Devices),
                 "--permissions" => Ok(Self::Permissions),
                 "--help" | "-h" => Ok(Self::Help),
                 _ => Err(io::Error::other("Unsupported arguments; use --help")),

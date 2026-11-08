@@ -20,7 +20,8 @@ Grant Accessibility and Screen Recording to Agent. After reboot, login is still 
 that desktop. Launch at login is not implemented yet.
 
 The runtime directory is `~/Library/Application Support/Agent/`, with mode 0700;
-`agent.sock` is mode 0600. There is no TCP listener. Other processes of the same user can send local
+`agent.sock` is mode 0600. The Swift helper has no TCP listener. Agent's Rust device service can expose
+these tools to explicitly paired devices over TLS. Other processes of the same user can send local
 requests. The socket is not a sandbox against that user's apps.
 
 To stop the app and service, create a file named `stop` in the runtime directory. Remove it before

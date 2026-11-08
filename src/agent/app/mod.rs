@@ -4,6 +4,7 @@ mod args;
 mod chatgpt;
 mod core;
 mod desktop_service;
+mod devices;
 
 pub(crate) use app::App;
 use app::Reopen;
