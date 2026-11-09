@@ -1,17 +1,20 @@
-use super::device_service::DeviceService;
 use super::devices_window::DevicesWindow;
 use super::menu_item_list::OpenDevices;
 use crate::app::args::Args;
+use crate::devices::DeviceService;
 use std::io;
 
-pub(crate) fn init(args: Args, cx: &mut gpui_kit::App) -> io::Result<()> {
-    let runtime_dir = crate::app::core::runtime_dir()?;
+pub(crate) fn init(
+    args: Args,
+    cx: &mut gpui_kit::App,
+) -> io::Result<std::sync::Arc<crate::devices::ToolConnection>> {
+    let runtime_dir = crate::platform::runtime_dir()?;
     let service = DeviceService::load(runtime_dir.clone())?;
-    super::local_client::start(service.clone(), &runtime_dir)?;
+    crate::devices::start_admin(service.clone(), &runtime_dir)?;
     let window_service = service.clone();
     cx.on_action(move |_: &OpenDevices, cx| DevicesWindow::open(window_service.clone(), cx));
     if args == Args::Devices {
-        DevicesWindow::open(service, cx);
+        DevicesWindow::open(service.clone(), cx);
     }
-    Ok(())
+    Ok(crate::devices::ToolConnection::new(service))
 }

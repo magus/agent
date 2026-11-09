@@ -1,6 +1,6 @@
 # `agent`
 
-macOS desktop control written in [rust](https://rust-lang.org/) and [swift](https://www.swift.org/).
+A macOS agent with desktop control, written in [rust](https://rust-lang.org/) and [swift](https://www.swift.org/).
 
 > [see how the desktop service works](src/agent/app/desktop_service/README.md)
 
@@ -39,7 +39,7 @@ open dist/Agent.app
 1. Open **System Settings → Privacy & Security**.
 2. Add `Agent.app` to **Accessibility** and **Screen & System Audio Recording** and enable both.
 3. Quit and reopen `Agent.app`
-4. Choose **Check capture** in Agent and confirm that the preview shows your app windows.
+4. Open **Agent → Desktop permissions…**, choose **Check capture**, and confirm the preview.
 
 Allow the additional screen-capture confirmation if macOS shows it when capturing.
 Lock the Mac before sending desktop-control requests; the current service rejects unlocked use.
@@ -49,6 +49,34 @@ Lock the Mac before sending desktop-control requests; the current service reject
 Use **Agent → Devices** to pair Macs over Tailscale and revoke access.
 Pairing is directional and requires approval on the target.
 See [direct tool calls](docs/plans/agent-core/tools.md) to run commands and desktop actions without a model.
+
+## chat
+
+Connect to a [central service](docs/plans/central-service/README.md#startup), then sign in through
+**Agent → ChatGPT** once. Every paired client shares that account and conversation history.
+Choose a conversation and model, then send a task. **Devices** shows each device by name.
+Enabled devices use full contrast; disabled devices are gray.
+Click a device to change its access for the conversation. Each tool call names its device.
+Chat works from any connected device, even when no devices are enabled for tools.
+
+**Agent → Conversation settings** sets the model, reasoning level, and enabled devices for new
+conversations started from this device. Automatic reasoning uses the model’s default. Existing conversations are unchanged.
+
+Typing from non-text controls focuses the composer. Conversation text can be selected and copied. Shift+Esc focuses the composer.
+Enter sends a message. Shift+Enter adds a newline. With an empty textbox during a task,
+the send icon becomes Stop. Closing the app does not stop a task. After an interruption,
+**Retrieve results** reads the original requests without repeating them.
+
+## source
+
+- `src/agent/app/` owns the desktop UI and service clients.
+- `src/agent/service/` owns execution, ChatGPT credentials, and conversation persistence.
+- `src/agent/devices/` owns pairing, transport, and local tool execution.
+- `src/agent/protocol/` owns shared message and conversation data.
+- `src/agent/platform/` owns shared OS facilities.
+
+`main.rs` calls `run.rs` to select desktop or service startup. The app and service do not import each other's
+implementation. Shared modules do not depend on GPUI.
 
 ## test
 

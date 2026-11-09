@@ -1,7 +1,6 @@
 use super::menu_item_list::OpenDesktopPermissions;
 use super::permission_setup::PermissionSetup;
 use super::service::DesktopService;
-use crate::app::Reopen;
 use crate::app::args::Args;
 use gpui_kit::App;
 use std::io;
@@ -23,9 +22,6 @@ pub(crate) fn init(args: Args, cx: &mut App) -> io::Result<()> {
     cx.on_action(move |_: &OpenDesktopPermissions, cx| {
         PermissionSetup::open(setup_service.clone(), cx)
     });
-
-    let reopen_service = service.clone();
-    cx.on_action(move |_: &Reopen, cx| PermissionSetup::open(reopen_service.clone(), cx));
 
     let quit_service = service.clone();
     cx.on_app_quit(move |_| {

@@ -31,6 +31,30 @@ pub(super) fn identify(address: SocketAddr) -> io::Result<String> {
     Ok(id.to_string())
 }
 
+pub(super) fn resolve_name(host: &str) -> io::Result<SocketAddr> {
+    let status = status()?;
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    let mut address_list = Vec::new();
+    for node in status.peer_by_key.values() {
+        let dns_name = node.dns_name.trim_end_matches('.').to_ascii_lowercase();
+        let short_name = dns_name.split('.').next().unwrap_or("");
+        if host == dns_name || host == short_name || host == node.name.to_ascii_lowercase() {
+            address_list.push(node.address()?);
+        }
+    }
+    address_list.sort();
+    address_list.dedup();
+    match address_list.as_slice() {
+        [address] => Ok(*address),
+        [] => Err(io::Error::other(
+            "Hostname not found. Enter its IP address or use Pair manually.",
+        )),
+        _ => Err(io::Error::other(
+            "Hostname matches multiple devices. Enter its full hostname or IP address.",
+        )),
+    }
+}
+
 #[derive(Deserialize)]
 pub(super) struct Status {
     #[serde(rename = "BackendState")]
@@ -47,6 +71,8 @@ pub(super) struct Node {
     pub id: String,
     #[serde(rename = "HostName")]
     pub name: String,
+    #[serde(rename = "DNSName", default)]
+    dns_name: String,
     #[serde(rename = "TailscaleIPs", default)]
     address_list: Vec<IpAddr>,
     #[serde(rename = "Online", default)]

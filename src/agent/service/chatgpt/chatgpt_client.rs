@@ -1,5 +1,3 @@
-use super::callback_server::CallbackServer;
-use super::login_timing::LoginTiming;
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header, jwk::JwkSet};
 use security_framework::passwords;
@@ -8,20 +6,24 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::io;
 use std::path::Path;
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use url::Url;
 
 pub(crate) struct ChatGptClient {
     http: ureq::Agent,
+    credential_service: String,
     host_id: String,
     session: Mutex<()>,
-    callback_server: Mutex<Option<CallbackServer>>,
 }
 
 impl ChatGptClient {
-    pub(crate) fn new(runtime_dir: &Path) -> io::Result<Self> {
+    pub(crate) fn new_central(runtime_dir: &Path) -> io::Result<Self> {
+        Self::with_storage(runtime_dir, "com.iamnoah.agent.service.chatgpt")
+    }
+
+    fn with_storage(runtime_dir: &Path, credential_service: &str) -> io::Result<Self> {
         let host_path = runtime_dir.join("chatgpt-host-id");
         let host_id = match std::fs::read_to_string(&host_path) {
             Ok(value) => value,
@@ -40,47 +42,43 @@ impl ChatGptClient {
 
         Ok(Self {
             http,
+            credential_service: credential_service.into(),
             host_id,
             session: Mutex::new(()),
-            callback_server: Mutex::new(None),
         })
     }
 
     pub(crate) fn account(&self) -> io::Result<Option<String>> {
         let _session = self.session.lock().unwrap();
-        Ok(load_account()?
+        Ok(load_account(&self.credential_service)?
             .filter(|account| account.tokens.is_some())
             .map(|account| account.label))
     }
 
-    pub(super) fn sign_in(
-        &self,
-        cancelled: &Arc<AtomicBool>,
-        timing: &LoginTiming,
-    ) -> io::Result<String> {
+    pub(crate) fn login_client_id(&self) -> io::Result<String> {
         let _session = self.session.lock().unwrap();
-        let previous = load_account()?;
-        let client_id = previous
-            .as_ref()
-            .map_or("dynamic_agent_client", |account| &account.client_id);
-        let attempt = {
-            let mut server = self.callback_server.lock().unwrap();
-            if server.is_none() {
-                *server = Some(CallbackServer::start()?);
-            }
-            server.as_ref().unwrap().begin(client_id, cancelled.clone())
-        };
-        let redirect_uri = &attempt.redirect_uri;
-        let state = &attempt.state;
+        Ok(load_account(&self.credential_service)?
+            .map(|account| account.client_id)
+            .unwrap_or_else(|| "dynamic_agent_client".into()))
+    }
+
+    pub(crate) fn begin_login(
+        &self,
+        redirect_uri: String,
+        state: &str,
+    ) -> io::Result<(PendingLogin, String)> {
+        validate_redirect(&redirect_uri)?;
+        uuid::Uuid::parse_str(state).map_err(io::Error::other)?;
+        let client_id = self.login_client_id()?;
         let nonce = random_value();
         let verifier = random_value();
         let challenge = URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
         let mut authorize = Url::parse("https://auth.openai.com/api/accounts/authorize").unwrap();
         authorize.query_pairs_mut().extend_pairs([
-            ("client_id", client_id),
+            ("client_id", client_id.as_str()),
             ("ext_agent_host_id", &self.host_id),
             ("response_type", "code"),
-            ("redirect_uri", redirect_uri),
+            ("redirect_uri", &redirect_uri),
             (
                 "scope",
                 "openid profile email offline_access resource.invoke chatgpt.tokens.use.direct",
@@ -91,70 +89,77 @@ impl ChatGptClient {
             ("code_challenge_method", "S256"),
             ("code_challenge", &challenge),
         ]);
-        if previous.is_none() {
+        if client_id == "dynamic_agent_client" {
             authorize
                 .query_pairs_mut()
                 .append_pair("agent_name_hint", "Agent");
         }
-        let status = std::process::Command::new("/usr/bin/open")
-            .arg(authorize.as_str())
-            .status()?;
-        if !status.success() {
-            return Err(io::Error::other(
-                "Could not open ChatGPT login in your browser.",
-            ));
-        }
-
-        let (callback, mut stream) = attempt.receive()?;
-        timing.mark("callback_received");
-        let result = (|| {
-            let response = self.token_request(&[
-                ("grant_type", "authorization_code"),
-                ("client_id", &callback.client_id),
-                ("code", &callback.code),
-                ("code_verifier", &verifier),
-                ("redirect_uri", redirect_uri),
-                ("resource", "https://api.openai.com/v1"),
-            ])?;
-            timing.mark("token_exchange_finished");
-            let id_token = required_string(&response, "id_token")?;
-            let identity = self.validate_identity(id_token, &callback.client_id, &nonce)?;
-            timing.mark("identity_verified");
-            if previous
-                .as_ref()
-                .is_some_and(|account| account.subject != identity.sub)
-            {
-                return Err(io::Error::other(
-                    "This proof supports one saved account. Sign in with the original account.",
-                ));
-            }
-            let tokens = read_tokens(&response, None)?;
-            if cancelled.load(Ordering::Relaxed) {
-                return Err(io::Error::other(
-                    "Login cancelled. No credentials were saved.",
-                ));
-            }
-            let account = SavedAccount {
-                client_id: callback.client_id,
-                subject: identity.sub.clone(),
-                label: identity.email.unwrap_or(identity.sub),
-                tokens: Some(tokens),
-            };
-            save_account(&account)?;
-            timing.mark("credentials_saved");
-            Ok(account.label)
-        })();
-
-        // A closed browser tab must not undo a saved login.
-        attempt.finish(&mut stream, result.is_ok());
-        timing.mark("browser_reply_finished");
-        result
+        Ok((
+            PendingLogin {
+                redirect_uri,
+                nonce,
+                verifier,
+                client_id,
+            },
+            authorize.into(),
+        ))
     }
 
-    pub(crate) fn check_model(&self) -> io::Result<String> {
+    pub(crate) fn complete_login(
+        &self,
+        pending: PendingLogin,
+        code: &str,
+        client_id: &str,
+        cancelled: &AtomicBool,
+    ) -> io::Result<String> {
         let _session = self.session.lock().unwrap();
-        let mut account =
-            load_account()?.ok_or_else(|| io::Error::other("Sign in with ChatGPT first."))?;
+        if cancelled.load(Ordering::SeqCst) {
+            return Err(io::Error::other("Login cancelled."));
+        }
+        if client_id.is_empty()
+            || (pending.client_id != "dynamic_agent_client" && pending.client_id != client_id)
+        {
+            return Err(io::Error::other("Login client identity changed."));
+        }
+        let response = self.token_request(&[
+            ("grant_type", "authorization_code"),
+            ("client_id", client_id),
+            ("code", code),
+            ("code_verifier", &pending.verifier),
+            ("redirect_uri", &pending.redirect_uri),
+            ("resource", "https://api.openai.com/v1"),
+        ])?;
+        let id_token = required_string(&response, "id_token")?;
+        let identity = self.validate_identity(id_token, client_id, &pending.nonce)?;
+        let previous = load_account(&self.credential_service)?;
+        if previous
+            .as_ref()
+            .is_some_and(|account| account.subject != identity.sub)
+        {
+            return Err(io::Error::other(
+                "Sign in with the service’s existing ChatGPT account.",
+            ));
+        }
+        let tokens = read_tokens(&response, None)?;
+        if cancelled.load(Ordering::SeqCst) {
+            return Err(io::Error::other(
+                "Login cancelled. No credentials were saved.",
+            ));
+        }
+        let account = SavedAccount {
+            client_id: client_id.into(),
+            subject: identity.sub.clone(),
+            label: identity.email.unwrap_or(identity.sub),
+            tokens: Some(tokens),
+        };
+        save_account(&self.credential_service, &account)?;
+        Ok(account.label)
+    }
+
+    fn authorization(&self) -> io::Result<String> {
+        let _session = self.session.lock().unwrap();
+        let mut account = load_account(&self.credential_service)?
+            .ok_or_else(|| io::Error::other("Sign in with ChatGPT first."))?;
         let tokens = account
             .tokens
             .as_ref()
@@ -171,16 +176,30 @@ impl ChatGptClient {
                 Err(error) => {
                     if error.kind() == io::ErrorKind::PermissionDenied {
                         account.tokens = None;
-                        save_account(&account)?;
+                        save_account(&self.credential_service, &account)?;
                     }
                     return Err(error);
                 }
             };
             account.tokens = Some(read_tokens(&response, Some(tokens))?);
-            save_account(&account)?;
+            save_account(&self.credential_service, &account)?;
         }
-        let token = &account.tokens.as_ref().unwrap().access_token;
-        let authorization = format!("Bearer {token}");
+        Ok(format!(
+            "Bearer {}",
+            account.tokens.as_ref().unwrap().access_token
+        ))
+    }
+
+    pub(crate) fn model_list(&self) -> io::Result<Vec<String>> {
+        Ok(self
+            .model_option_list()?
+            .into_iter()
+            .map(|option| option.model)
+            .collect())
+    }
+
+    pub(crate) fn model_option_list(&self) -> io::Result<Vec<crate::protocol::ModelOption>> {
+        let authorization = self.authorization()?;
         let mut response = self
             .http
             .get("https://api.openai.com/v1/models")
@@ -188,15 +207,52 @@ impl ChatGptClient {
             .call()
             .map_err(network_error)?;
         let catalog: Value = response.body_mut().read_json().map_err(network_error)?;
-        let model = catalog["models"]
+        let model_list: Vec<crate::protocol::ModelOption> = catalog["models"]
             .as_array()
-            .and_then(|model_list| {
-                model_list
-                    .iter()
-                    .find(|model| model["visibility"] == "list")
+            .into_iter()
+            .flatten()
+            .filter(|model| model["visibility"] == "list")
+            .filter_map(|model| {
+                let slug = model["slug"].as_str()?;
+                let reasoning_effort_list = model["supported_reasoning_levels"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|level| level["effort"].as_str().map(str::to_owned))
+                    .collect();
+                Some(crate::protocol::ModelOption {
+                    model: slug.into(),
+                    reasoning_effort_list,
+                })
             })
-            .and_then(|model| model["slug"].as_str())
-            .ok_or_else(|| io::Error::other("ChatGPT returned no available models."))?;
+            .collect();
+        if model_list.is_empty() {
+            return Err(io::Error::other("ChatGPT returned no available models."));
+        }
+        Ok(model_list)
+    }
+
+    pub(crate) fn respond(&self, request: &Value) -> io::Result<Value> {
+        let authorization = self.authorization()?;
+        let mut response = self
+            .http
+            .post("https://api.openai.com/v1/responses")
+            .header("Authorization", &authorization)
+            .header("Accept", "text/event-stream")
+            .send_json(request)
+            .map_err(network_error)?;
+        let body = response
+            .body_mut()
+            .with_config()
+            .limit(16 * 1024 * 1024)
+            .read_to_string()
+            .map_err(network_error)?;
+        completed_response(&body)
+    }
+
+    pub(crate) fn check_model(&self) -> io::Result<String> {
+        let model_list = self.model_list()?;
+        let model = &model_list[0];
         let request = json!({
             "model": model,
             "store": false,
@@ -207,20 +263,7 @@ impl ChatGptClient {
                 "required": ["answer"], "additionalProperties": false}}],
             "tool_choice": {"type": "function", "name": "report_result"}
         });
-        let mut response = self
-            .http
-            .post("https://api.openai.com/v1/responses")
-            .header("Authorization", &authorization)
-            .header("Accept", "text/event-stream")
-            .send_json(&request)
-            .map_err(network_error)?;
-        let body = response
-            .body_mut()
-            .with_config()
-            .limit(2 * 1024 * 1024)
-            .read_to_string()
-            .map_err(network_error)?;
-        let completed = completed_response(&body)?;
+        let completed = self.respond(&request)?;
         let output_list = completed["output"]
             .as_array()
             .ok_or_else(|| io::Error::other("The model returned no output."))?;
@@ -242,7 +285,7 @@ impl ChatGptClient {
 
     pub(crate) fn sign_out(&self) -> io::Result<String> {
         let _session = self.session.lock().unwrap();
-        let Some(mut account) = load_account()? else {
+        let Some(mut account) = load_account(&self.credential_service)? else {
             return Ok("Signed out.".into());
         };
         let revoked = if let Some(tokens) = &account.tokens {
@@ -256,7 +299,7 @@ impl ChatGptClient {
             true
         };
         account.tokens = None;
-        save_account(&account)?;
+        save_account(&self.credential_service, &account)?;
         Ok(if revoked { "Signed out." } else {
             "Signed out locally. Remote revocation was not confirmed. You can disconnect Agent in ChatGPT Settings."
         }.into())
@@ -330,6 +373,31 @@ impl ChatGptClient {
             .map_err(network_error)?;
         Ok(())
     }
+}
+
+pub(crate) struct PendingLogin {
+    redirect_uri: String,
+    nonce: String,
+    verifier: String,
+    client_id: String,
+}
+
+fn validate_redirect(value: &str) -> io::Result<()> {
+    let url = Url::parse(value).map_err(io::Error::other)?;
+    if url.scheme() != "http"
+        || url.host_str() != Some("127.0.0.1")
+        || url.port().is_none_or(|port| port == 0)
+        || url.path() != "/auth/callback"
+        || url.query().is_some()
+        || url.fragment().is_some()
+        || !url.username().is_empty()
+        || url.password().is_some()
+    {
+        return Err(io::Error::other(
+            "Login requires the client’s loopback callback.",
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Serialize, Deserialize)]
@@ -409,9 +477,7 @@ fn completed_response(body: &str) -> io::Result<Value> {
                 return Ok(event["response"].clone());
             }
             Some("response.failed" | "response.incomplete" | "error") => {
-                return Err(io::Error::other(
-                    "The ChatGPT request failed or reached a usage limit. Check ChatGPT Settings → Usage.",
-                ));
+                return Err(response_error(&event));
             }
             _ => {}
         }
@@ -421,8 +487,34 @@ fn completed_response(body: &str) -> io::Result<Value> {
     ))
 }
 
-fn load_account() -> io::Result<Option<SavedAccount>> {
-    match passwords::get_generic_password("com.iamnoah.agent.chatgpt", "account") {
+fn response_error(event: &Value) -> io::Error {
+    let code = event["response"]["error"]["code"]
+        .as_str()
+        .or(event["error"]["code"].as_str())
+        .or(event["code"].as_str());
+    let reason = event["response"]["incomplete_details"]["reason"].as_str();
+    let detail = code.or(reason).filter(|value| {
+        !value.is_empty()
+            && value.len() <= 100
+            && value
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_')
+    });
+    let kind = if event["type"] == "response.incomplete" {
+        "incomplete"
+    } else {
+        "failed"
+    };
+    match detail {
+        Some(detail) => io::Error::other(format!("ChatGPT response {kind}. Error code {detail}.")),
+        None => io::Error::other(format!(
+            "ChatGPT response {kind}. No error code was provided."
+        )),
+    }
+}
+
+fn load_account(service: &str) -> io::Result<Option<SavedAccount>> {
+    match passwords::get_generic_password(service, "account") {
         Ok(bytes) => serde_json::from_slice(&bytes)
             .map(Some)
             .map_err(io::Error::other),
@@ -433,9 +525,9 @@ fn load_account() -> io::Result<Option<SavedAccount>> {
     }
 }
 
-fn save_account(account: &SavedAccount) -> io::Result<()> {
+fn save_account(service: &str, account: &SavedAccount) -> io::Result<()> {
     let bytes = serde_json::to_vec(account).map_err(io::Error::other)?;
-    passwords::set_generic_password("com.iamnoah.agent.chatgpt", "account", &bytes)
+    passwords::set_generic_password(service, "account", &bytes)
         .map_err(|_| io::Error::other("Could not save Agent's ChatGPT account in Keychain."))
 }
 
@@ -506,6 +598,23 @@ mod tests {
     use super::*;
 
     #[test]
+    fn remote_login_accepts_only_a_loopback_callback() {
+        assert!(validate_redirect("http://127.0.0.1:49882/auth/callback").is_ok());
+        for invalid in [
+            "https://example.com/auth/callback",
+            "http://100.122.16.74:49882/auth/callback",
+            "http://127.0.0.1/auth/callback",
+            "http://127.0.0.1:0/auth/callback",
+            "http://127.0.0.1:49882/other",
+            "http://127.0.0.1:49882/auth/callback?code=anything",
+            "http://user@127.0.0.1:49882/auth/callback",
+            "http://127.0.0.1:49882/auth/callback#fragment",
+        ] {
+            assert!(validate_redirect(invalid).is_err(), "accepted {invalid}");
+        }
+    }
+
+    #[test]
     fn refresh_only_discards_confirmed_unusable_tokens() {
         for code in [
             "invalid_grant",
@@ -528,6 +637,26 @@ mod tests {
             assert_ne!(error.kind(), io::ErrorKind::PermissionDenied);
             assert!(!error.to_string().contains("private response"));
         }
+    }
+
+    #[test]
+    fn stream_errors_report_codes_without_leaking_message_or_credentials() {
+        for event in [
+            json!({"type":"response.failed", "response":{"error":{"code":"invalid_request", "message":"private input", "access_token":"secret"}}}),
+            json!({"type":"error", "code":"invalid_request", "message":"private input"}),
+        ] {
+            let body = format!("data: {event}\n\n");
+            let error = completed_response(&body).unwrap_err().to_string();
+            assert!(error.contains("invalid_request"));
+            assert!(!error.contains("private") && !error.contains("secret"));
+            assert!(!error.contains("usage limit"));
+        }
+        let event = json!({"type":"response.incomplete", "response":{"incomplete_details":{"reason":"max_output_tokens"}}});
+        assert!(
+            response_error(&event)
+                .to_string()
+                .contains("max_output_tokens")
+        );
     }
 
     #[test]

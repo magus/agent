@@ -7,7 +7,7 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::Path;
 
 #[derive(Clone, Serialize, Deserialize)]
-pub(super) struct Device {
+pub(crate) struct Device {
     pub name: String,
     pub address: SocketAddr,
     pub certificate: Vec<u8>,
@@ -31,6 +31,10 @@ pub(super) struct DeviceStore {
     pub address: Option<SocketAddr>,
     pub name: String,
     pub peer_list: Vec<Peer>,
+    #[serde(default)]
+    pub name_override: Option<String>,
+    #[serde(default)]
+    pub name_migrated: bool,
     #[serde(default)]
     pub declined_id_list: Vec<String>,
 }

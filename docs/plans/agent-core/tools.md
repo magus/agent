@@ -1,15 +1,23 @@
 # Direct device tools
 
-Open **Agent → Devices** on each Mac. Agent detects its Tailscale address and uses port 47321.
-Edit the device name if needed. Under **Available devices**, choose **Request access** on the
-device you want to control. Choose **Allow** on that device. This grants shell and computer control
-in one direction only. Reverse access needs a separate request and approval.
+Open **Agent → Devices** on each Mac. The list includes known and discovered devices. Connection
+status appears beside each name. **Outgoing** controls access to that device. **Incoming** controls
+its access to the device running Agent. Choose **Request access**, then **Allow** on the receiving
+device. Approval grants control in that direction only.
 
-**Targets** lists outgoing connections. **Remove target** removes only that outgoing connection.
-**Devices allowed to control this Mac** lists incoming grants. **Revoke access** removes only the
-incoming grant. It also prevents repeated requests from prompting again. To accept a new request
-after declining or revoking access, open **Connection details** and choose **Allow requests**.
+**Remove** removes only the outgoing connection. **Revoke** removes only the incoming grant.
+It also prevents repeated requests from prompting again. To accept a new request after declining
+or revoking access, choose **Allow requests** in that device's Incoming column.
 This allows another request, not control of the Mac.
+
+The refresh icon scans for devices. **Add device** accepts an IP address or hostname, verifies the
+endpoint, and shows its name without granting access. A hostname can include a port, such as
+`joahs-mac-mini:47322` for the central service. Tailscale currently supplies discovery and address
+verification; execution devices use port 47321. Hostname lookup can use its device list when system DNS fails.
+Technical connection information is under **Connection details**.
+
+The default device name is the macOS computer name. Saving a name sets an Agent-specific override.
+**Use system name** clears that override. Changing a name does not change identity or permissions.
 
 Use **Pair manually** if discovery is unavailable. Copy an invitation from the target, paste it on
 the controller, and approve the request on the target. Invitations expire after 10 minutes.

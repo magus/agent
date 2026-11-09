@@ -2,6 +2,7 @@ use std::io;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Args {
+    Chat,
     Setup,
     ChatGpt,
     Devices,
@@ -12,7 +13,7 @@ pub(crate) enum Args {
 impl Args {
     pub(crate) fn parse(argument_list: &[String]) -> io::Result<Self> {
         match argument_list {
-            [] => Ok(Self::Setup),
+            [] => Ok(Self::Chat),
             [argument] => match argument.as_str() {
                 "--setup" => Ok(Self::Setup),
                 "--chatgpt" => Ok(Self::ChatGpt),
@@ -32,7 +33,7 @@ mod tests {
 
     #[test]
     fn accepts_existing_commands_and_rejects_conflicting_arguments() {
-        assert_eq!(Args::parse(&[]).unwrap(), Args::Setup);
+        assert_eq!(Args::parse(&[]).unwrap(), Args::Chat);
 
         for (argument, expected) in [
             ("--setup", Args::Setup),

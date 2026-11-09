@@ -1,7 +1,8 @@
-use super::device_service::DeviceService;
+use super::device_row::DeviceRow;
+use crate::devices::DeviceService;
 use gpui_kit::component::button::Button;
 use gpui_kit::component::input::{Input, InputState};
-use gpui_kit::component::{ActiveTheme, Disableable};
+use gpui_kit::component::{ActiveTheme, Disableable, IconName};
 use gpui_kit::{prelude::*, *};
 use serde_json::Value;
 use std::io;
@@ -12,6 +13,9 @@ pub(super) struct DevicesWindow {
     service: Arc<DeviceService>,
     name: Entity<InputState>,
     invitation: Entity<InputState>,
+    host: Entity<InputState>,
+    show_add: bool,
+    scanning: bool,
     snapshot: Value,
     message_by_action: std::collections::HashMap<String, String>,
     show_manual: bool,
@@ -25,9 +29,10 @@ impl DevicesWindow {
             return;
         }
         let options = WindowOptions {
+            window_min_size: Some(size(px(760.), px(440.))),
             window_bounds: Some(WindowBounds::Windowed(Bounds::centered(
                 None,
-                size(px(640.), px(720.)),
+                size(px(900.), px(560.)),
                 cx,
             ))),
             titlebar: Some(TitlebarOptions {
@@ -69,6 +74,11 @@ impl DevicesWindow {
                         InputState::new(window, cx)
                             .placeholder("Paste an invitation from the device you want to control")
                     }),
+                    host: cx.new(|cx| {
+                        InputState::new(window, cx).placeholder("IP address or hostname")
+                    }),
+                    show_add: false,
+                    scanning: false,
                     snapshot,
                     message_by_action: std::collections::HashMap::new(),
                     show_manual: false,
@@ -96,8 +106,13 @@ impl DevicesWindow {
             return;
         }
         self.busy = true;
-        self.message_by_action
-            .insert(action_id.clone(), "Working…".into());
+        self.scanning = action_id == "refresh";
+        if self.scanning {
+            self.message_by_action.remove(&action_id);
+        } else {
+            self.message_by_action
+                .insert(action_id.clone(), "Working…".into());
+        }
         let service = self.service.clone();
         cx.spawn(async move |view, cx| {
             let result = cx
@@ -106,6 +121,7 @@ impl DevicesWindow {
                 .await;
             let _ = view.update(cx, |view, cx| {
                 view.busy = false;
+                view.scanning = false;
                 view.message_by_action
                     .insert(action_id, result.unwrap_or_else(|error| error.to_string()));
                 view.snapshot = view.service.snapshot();
@@ -124,236 +140,466 @@ impl DevicesWindow {
             .children(self.message_by_action.get(id).cloned())
     }
 
-    fn device_row(&self, device: &Value, kind: &str, cx: &mut Context<Self>) -> AnyElement {
-        let certificate: Vec<u8> =
-            serde_json::from_value(device["certificate"].clone()).unwrap_or_default();
-        let id = super::identity::device_id(&certificate);
-        let name = device["name"].as_str().unwrap_or("Device").to_string();
-        let key = format!("{kind}-{id}");
-        let status = if kind == "target" {
-            self.snapshot["status_by_id"][&id]
-                .as_str()
-                .unwrap_or("Checking connection")
-        } else if kind == "pending" {
-            "Wants to control this Mac"
-        } else if kind == "allowed" {
-            "Can control this Mac"
-        } else if kind == "declined" {
-            "Access denied"
+    fn device_button(
+        &self,
+        id: &str,
+        action: DeviceAction,
+        label: &'static str,
+        cx: &mut Context<Self>,
+    ) -> Button {
+        let id = id.to_string();
+        Button::new(SharedString::from(format!("{action:?}-{id}")))
+            .label(label)
+            .disabled(self.busy)
+            .on_click(cx.listener(move |view, _, _, cx| {
+                let id = id.clone();
+                view.run(id.clone(), move |service| action.run(&service, &id), cx);
+            }))
+    }
+
+    fn device_row(&self, row: &DeviceRow, cx: &mut Context<Self>) -> AnyElement {
+        let status = if row.outgoing_status == "Connected" {
+            "Connected"
+        } else if row.online {
+            "Online"
         } else {
-            "Shell and computer use"
+            "Offline"
         };
-        let label = match kind {
-            "target" => "Remove target",
-            "allowed" => "Revoke access",
-            "pending" => "Allow",
-            "declined" => "Allow requests",
-            _ => "Request access",
+        let outgoing_status = match row.outgoing_status.as_str() {
+            "Connected" => "Allowed",
+            "Awaiting approval" => "Pending",
+            "Declined" => "Declined",
+            "Access not granted" => "Not allowed",
+            _ => "",
         };
-        let operation = kind.to_string();
-        let action_id = key.clone();
-        let device_id = id.clone();
         div()
             .flex()
             .flex_col()
             .gap_1()
-            .p_3()
-            .rounded_md()
-            .border_1()
+            .px_3()
+            .py_2()
+            .border_b_1()
             .border_color(cx.theme().border)
             .child(
                 div()
                     .flex()
                     .items_center()
-                    .justify_between()
                     .gap_3()
                     .child(
-                        div().flex().flex_col().gap_1().child(name).child(
-                            div()
-                                .text_sm()
-                                .text_color(cx.theme().muted_foreground)
-                                .child(status.to_string()),
-                        ),
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .child(div().truncate().child(row.name.clone()))
+                            .child(
+                                div()
+                                    .flex_shrink_0()
+                                    .text_sm()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child(status),
+                            ),
                     )
                     .child(
                         div()
+                            .w(px(180.))
+                            .flex_shrink_0()
                             .flex()
+                            .items_center()
                             .gap_2()
-                            .child(
-                                Button::new(SharedString::from(key.clone()))
-                                    .label(label)
-                                    .disabled(self.busy)
-                                    .on_click(cx.listener(move |view, _, _, cx| {
-                                        let id = device_id.clone();
-                                        let operation = operation.clone();
-                                        view.run(
-                                            action_id.clone(),
-                                            move |service| match operation.as_str() {
-                                                "target" => {
-                                                    service.remove_target(&id)?;
-                                                    Ok("Target removed".into())
-                                                }
-                                                "allowed" => {
-                                                    service.revoke_access(&id)?;
-                                                    Ok("Access revoked".into())
-                                                }
-                                                "pending" => {
-                                                    service.approve(&id)?;
-                                                    Ok("Access allowed".into())
-                                                }
-                                                "declined" => {
-                                                    service.allow_requests(&id)?;
-                                                    Ok("New requests allowed".into())
-                                                }
-                                                _ => {
-                                                    let result = service.request_access(&id)?;
-                                                    Ok(result["status"]
-                                                        .as_str()
-                                                        .unwrap_or("Request sent")
-                                                        .into())
-                                                }
-                                            },
-                                            cx,
-                                        );
-                                    })),
-                            )
-                            .when(kind == "pending", |row| {
-                                let action_id = key.clone();
-                                row.child(
-                                    Button::new(SharedString::from(format!("decline-{id}")))
-                                        .label("Decline")
-                                        .disabled(self.busy)
-                                        .on_click(cx.listener(move |view, _, _, cx| {
-                                            let id = id.clone();
-                                            view.run(
-                                                action_id.clone(),
-                                                move |service| {
-                                                    service.decline(&id)?;
-                                                    Ok("Request declined".into())
-                                                },
-                                                cx,
-                                            );
-                                        })),
+                            .when(row.outgoing, |cell| {
+                                cell.child(div().text_sm().child(outgoing_status)).child(
+                                    self.device_button(&row.id, DeviceAction::Remove, "Remove", cx),
                                 )
+                            })
+                            .when(!row.outgoing, |cell| {
+                                cell.child(
+                                    self.device_button(
+                                        &row.id,
+                                        DeviceAction::Request,
+                                        "Request access",
+                                        cx,
+                                    )
+                                    .disabled(self.busy || !row.online),
+                                )
+                            }),
+                    )
+                    .child(
+                        div()
+                            .w(px(220.))
+                            .flex_shrink_0()
+                            .flex()
+                            .items_center()
+                            .gap_2()
+                            .when(row.pending, |cell| {
+                                cell.child(self.device_button(
+                                    &row.id,
+                                    DeviceAction::Allow,
+                                    "Allow",
+                                    cx,
+                                ))
+                                .child(self.device_button(
+                                    &row.id,
+                                    DeviceAction::Decline,
+                                    "Decline",
+                                    cx,
+                                ))
+                            })
+                            .when(!row.pending && row.incoming, |cell| {
+                                cell.child(div().text_sm().child("Allowed")).child(
+                                    self.device_button(&row.id, DeviceAction::Revoke, "Revoke", cx),
+                                )
+                            })
+                            .when(!row.pending && !row.incoming && row.declined, |cell| {
+                                cell.child(div().text_sm().child("Blocked")).child(
+                                    self.device_button(
+                                        &row.id,
+                                        DeviceAction::Retry,
+                                        "Allow requests",
+                                        cx,
+                                    ),
+                                )
+                            })
+                            .when(!row.pending && !row.incoming && !row.declined, |cell| {
+                                cell.child(div().text_sm().child("Not allowed"))
                             }),
                     ),
             )
-            .child(self.feedback(&key))
+            .child(self.feedback(&row.id))
+            .into_any_element()
+    }
+
+    fn manual_panel(&self, cx: &mut Context<Self>) -> AnyElement {
+        div()
+            .flex()
+            .flex_col()
+            .gap_2()
+            .p_3()
+            .border_1()
+            .border_color(cx.theme().border)
+            .rounded_md()
+            .child("Let another device request access")
+            .child(
+                Button::new("copy-invitation")
+                    .label("Copy invitation")
+                    .disabled(self.busy)
+                    .on_click(cx.listener(|view, _, _, cx| {
+                        let message = match view.service.invite() {
+                            Ok(value) => {
+                                cx.write_to_clipboard(ClipboardItem::new_string(
+                                    value["invitation"].as_str().unwrap().into(),
+                                ));
+                                "Copied. Expires in 10 minutes. Approval is still required.".into()
+                            }
+                            Err(error) => error.to_string(),
+                        };
+                        view.message_by_action.insert("copy".into(), message);
+                        cx.notify();
+                    })),
+            )
+            .child(self.feedback("copy"))
+            .child("Or paste an invitation from another device")
+            .child(Input::new(&self.invitation))
+            .child(
+                Button::new("manual-request")
+                    .label("Request access")
+                    .disabled(self.busy)
+                    .on_click(cx.listener(|view, _, _, cx| {
+                        let invitation = view.invitation.read(cx).value().to_string();
+                        view.run(
+                            "manual".into(),
+                            move |service| {
+                                let result = service.pair(invitation.trim())?;
+                                Ok(result["status"].as_str().unwrap_or("Request sent").into())
+                            },
+                            cx,
+                        );
+                    })),
+            )
+            .child(self.feedback("manual"))
             .into_any_element()
     }
 }
 
 impl Render for DevicesWindow {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let pending_list = self.snapshot["pending_list"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
-        let peer_list = self.snapshot["peer_list"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
-        let candidate_list = self.snapshot["candidate_list"]
-            .as_array()
-            .cloned()
-            .unwrap_or_default();
-        let target_list = peer_list
-            .iter()
-            .filter(|peer| peer["target"] == true)
-            .collect::<Vec<_>>();
-        let allowed_list = peer_list
-            .iter()
-            .filter(|peer| peer["may_control_us"] == true)
-            .collect::<Vec<_>>();
-        let available_list = candidate_list
-            .iter()
-            .filter(|candidate| {
-                !target_list.iter().any(|peer| {
-                    peer["device"]["certificate"]
-                        == candidate["description"]["device"]["certificate"]
-                })
-            })
-            .collect::<Vec<_>>();
-
-        div().size_full().flex().flex_col().bg(cx.theme().background).text_color(cx.theme().foreground)
-            .child(div().p_6().pb_3().flex().flex_col().gap_2()
-                .child(div().text_xl().child("Devices"))
-                .child(div().text_sm().child("Device name"))
-                .child(div().flex().gap_2().items_center()
+        let row_list = DeviceRow::list(&self.snapshot);
+        div()
+            .size_full()
+            .flex()
+            .flex_col()
+            .gap_3()
+            .p_5()
+            .bg(cx.theme().background)
+            .text_color(cx.theme().foreground)
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .justify_between()
+                    .child(div().text_xl().child("Devices"))
+                    .child(
+                        div()
+                            .flex()
+                            .gap_2()
+                            .items_center()
+                            .when(self.scanning, |row| {
+                                row.child(div().text_sm().child("Scanning…"))
+                            })
+                            .child(
+                                Button::new("refresh")
+                                    .icon(IconName::RefreshCw)
+                                    .tooltip("Refresh devices")
+                                    .loading(self.scanning)
+                                    .disabled(self.busy)
+                                    .on_click(cx.listener(|view, _, _, cx| {
+                                        view.run(
+                                            "refresh".into(),
+                                            |service| {
+                                                service.discover()?;
+                                                Ok(String::new())
+                                            },
+                                            cx,
+                                        );
+                                    })),
+                            )
+                            .child(
+                                Button::new("add-device")
+                                    .label(if self.show_add { "Close" } else { "Add device" })
+                                    .on_click(cx.listener(|view, _, _, cx| {
+                                        view.show_add = !view.show_add;
+                                        view.show_manual = false;
+                                        cx.notify();
+                                    })),
+                            ),
+                    ),
+            )
+            .child(self.feedback("refresh"))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .child(div().text_sm().child("Device name"))
                     .child(div().flex_1().child(Input::new(&self.name)))
-                    .child(Button::new("save-name").label("Save").disabled(self.busy)
-                        .on_click(cx.listener(|view, _, _, cx| {
-                            let name = view.name.read(cx).value().to_string();
-                            view.run("name".into(), move |service| {
-                                service.rename(name)?;
-                                Ok("Saved".into())
-                            }, cx);
-                        }))))
-                .child(self.feedback("name"))
-                .child(div().flex().justify_between().items_center()
-                    .child(div().text_sm().child(self.snapshot["connection_status"].as_str().unwrap_or("Checking Tailscale").to_string()))
-                    .child(Button::new("refresh-devices").label("Refresh").disabled(self.busy)
-                        .on_click(cx.listener(|view, _, _, cx| {
-                            view.run("refresh".into(), |service| {
-                                service.discover()?;
-                                Ok("Devices refreshed".into())
-                            }, cx);
-                        }))))
-                .child(self.feedback("refresh")))
-            .child(div().id("device-list").flex_1().min_h_0().overflow_y_scroll().px_6().pb_6().flex().flex_col().gap_3()
-                .when(!self.show_manual, |column| column
-                .when(!pending_list.is_empty(), |column| column
-                    .child(div().text_lg().child("Access requests"))
-                    .children(pending_list.iter().map(|pending| self.device_row(&pending["device"], "pending", cx))))
-                .child(div().text_lg().child("Targets"))
-                .child(div().text_sm().text_color(cx.theme().muted_foreground).child("Devices this Mac can control"))
-                .when(target_list.is_empty(), |column| column.child("No targets yet"))
-                .children(target_list.iter().map(|peer| self.device_row(&peer["device"], "target", cx)))
-                .child(div().text_lg().mt_3().child("Devices allowed to control this Mac"))
-                .when(allowed_list.is_empty(), |column| column.child(div().text_sm().child("No devices have access")))
-                .children(allowed_list.iter().map(|peer| self.device_row(&peer["device"], "allowed", cx)))
-                .child(div().text_lg().mt_3().child("Available devices"))
-                .when(available_list.is_empty(), |column| column.child(div().text_sm().child("No other Agent devices found. Keep Agent open on both devices.")))
-                .children(available_list.iter().map(|candidate| self.device_row(&candidate["description"]["device"], "available", cx))))
-                .child(Button::new("pair-manually").label(if self.show_manual { "Hide manual pairing" } else { "Pair manually" })
-                    .on_click(cx.listener(|view, _, _, cx| { view.show_manual = !view.show_manual; cx.notify(); })))
-                .when(self.show_manual, |column| column.child(div().flex().flex_col().gap_2().p_3().border_1().border_color(cx.theme().border).rounded_md()
-                    .child("Let another device request access to this Mac")
-                    .child(Button::new("copy-invitation").label("Copy invitation").disabled(self.busy)
-                        .on_click(cx.listener(|view, _, _, cx| {
-                            let message = match view.service.invite() {
-                                Ok(value) => {
-                                    cx.write_to_clipboard(ClipboardItem::new_string(value["invitation"].as_str().unwrap().into()));
-                                    "Copied. Expires in 10 minutes. Approval is still required.".into()
+                    .child(
+                        Button::new("save-name")
+                            .label("Save")
+                            .disabled(self.busy)
+                            .on_click(cx.listener(|view, _, _, cx| {
+                                let name = view.name.read(cx).value().to_string();
+                                view.run(
+                                    "name".into(),
+                                    move |service| {
+                                        service.rename(name)?;
+                                        Ok("Saved".into())
+                                    },
+                                    cx,
+                                );
+                            })),
+                    )
+                    .child(
+                        Button::new("system-name")
+                            .label("Use system name")
+                            .disabled(self.busy || self.snapshot["name_override"].is_null())
+                            .on_click(cx.listener(|view, _, window, cx| {
+                                match view.service.use_system_name() {
+                                    Ok(value) => {
+                                        let name = value["name"].as_str().unwrap_or("").to_string();
+                                        view.name.update(cx, |input, cx| {
+                                            input.set_value(name, window, cx)
+                                        });
+                                        view.snapshot = view.service.snapshot();
+                                        view.message_by_action.remove("name");
+                                    }
+                                    Err(error) => {
+                                        view.message_by_action
+                                            .insert("name".into(), error.to_string());
+                                    }
                                 }
-                                Err(error) => error.to_string(),
-                            };
-                            view.message_by_action.insert("copy".into(), message);
-                            cx.notify();
-                        })))
-                    .child(self.feedback("copy"))
-                    .child("Or paste an invitation to control another device")
-                    .child(Input::new(&self.invitation))
-                    .child(Button::new("manual-request").label("Request access").disabled(self.busy)
-                        .on_click(cx.listener(|view, _, _, cx| {
-                            let invitation = view.invitation.read(cx).value().to_string();
-                            view.run("manual".into(), move |service| {
-                                let result = service.pair(invitation.trim())?;
-                                Ok(result["status"].as_str().unwrap_or("Request sent").into())
-                            }, cx);
-                        })))
-                    .child(self.feedback("manual"))))
-                .child(Button::new("connection-details").label(if self.show_details { "Hide connection details" } else { "Connection details" })
-                    .on_click(cx.listener(|view, _, _, cx| { view.show_details = !view.show_details; cx.notify(); })))
-                .when(self.show_details, |column| {
-                    column.child(div().text_xs().child(format!("Address {}", self.snapshot["address"].as_str().unwrap_or("Unavailable"))))
-                        .child(div().text_xs().child(format!("Identity {}", self.snapshot["id"].as_str().unwrap_or(""))))
-                        .children(peer_list.iter().filter(|peer| {
-                            let certificate: Vec<u8> = serde_json::from_value(peer["device"]["certificate"].clone()).unwrap_or_default();
-                            let id = super::identity::device_id(&certificate);
-                            self.snapshot["declined_id_list"].as_array().is_some_and(|list| list.iter().any(|value| value.as_str() == Some(&id)))
-                        }).map(|peer| self.device_row(&peer["device"], "declined", cx)))
-                }))
+                                cx.notify();
+                            })),
+                    ),
+            )
+            .child(self.feedback("name"))
+            .when(self.snapshot["address"].is_null(), |column| {
+                column.child(
+                    div()
+                        .text_sm()
+                        .child("Device connections unavailable. Open Connection details."),
+                )
+            })
+            .when(self.show_add, |column| {
+                column.child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap_2()
+                        .child(
+                            div()
+                                .flex()
+                                .gap_2()
+                                .child(div().flex_1().child(Input::new(&self.host)))
+                                .child(
+                                    Button::new("find-device")
+                                        .label("Find device")
+                                        .disabled(self.busy)
+                                        .on_click(cx.listener(|view, _, _, cx| {
+                                            let host = view.host.read(cx).value().to_string();
+                                            view.run(
+                                                "find".into(),
+                                                move |service| {
+                                                    let description = service.find_device(&host)?;
+                                                    Ok(format!(
+                                                        "Verified {}.",
+                                                        description["device"]["name"]
+                                                            .as_str()
+                                                            .unwrap_or("device")
+                                                    ))
+                                                },
+                                                cx,
+                                            );
+                                        })),
+                                ),
+                        )
+                        .child(self.feedback("find")),
+                )
+            })
+            .child(
+                div()
+                    .id("device-content")
+                    .flex_1()
+                    .min_h_0()
+                    .overflow_y_scroll()
+                    .when(!self.show_manual, |column| {
+                        column.child(
+                            div()
+                                .border_1()
+                                .border_color(cx.theme().border)
+                                .rounded_md()
+                                .overflow_hidden()
+                                .child(
+                                    div()
+                                        .flex()
+                                        .items_center()
+                                        .gap_3()
+                                        .px_3()
+                                        .py_2()
+                                        .text_sm()
+                                        .text_color(cx.theme().muted_foreground)
+                                        .child(div().flex_1().child("Device"))
+                                        .child(div().w(px(180.)).child("Outgoing"))
+                                        .child(div().w(px(220.)).child("Incoming")),
+                                )
+                                .when(row_list.is_empty(), |list| {
+                                    list.child(
+                                        div()
+                                            .p_3()
+                                            .child("No devices yet. Add a device or refresh."),
+                                    )
+                                })
+                                .children(row_list.iter().map(|row| self.device_row(row, cx))),
+                        )
+                    })
+                    .when(self.show_manual, |column| {
+                        column.child(self.manual_panel(cx))
+                    }),
+            )
+            .child(
+                div()
+                    .flex()
+                    .gap_2()
+                    .child(
+                        Button::new("manual")
+                            .label(if self.show_manual {
+                                "Back to devices"
+                            } else {
+                                "Pair manually"
+                            })
+                            .on_click(cx.listener(|view, _, _, cx| {
+                                view.show_manual = !view.show_manual;
+                                view.show_add = false;
+                                cx.notify();
+                            })),
+                    )
+                    .child(
+                        Button::new("details")
+                            .label(if self.show_details {
+                                "Hide details"
+                            } else {
+                                "Connection details"
+                            })
+                            .on_click(cx.listener(|view, _, _, cx| {
+                                view.show_details = !view.show_details;
+                                cx.notify();
+                            })),
+                    ),
+            )
+            .when(self.show_details, |column| {
+                column.child(
+                    div()
+                        .text_xs()
+                        .flex()
+                        .flex_col()
+                        .gap_1()
+                        .child(
+                            self.snapshot["connection_status"]
+                                .as_str()
+                                .unwrap_or("Checking connection")
+                                .to_string(),
+                        )
+                        .child(format!(
+                            "Address {}",
+                            self.snapshot["address"].as_str().unwrap_or("Unavailable")
+                        ))
+                        .child(format!(
+                            "Identity {}",
+                            self.snapshot["id"].as_str().unwrap_or("")
+                        )),
+                )
+            })
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum DeviceAction {
+    Request,
+    Remove,
+    Allow,
+    Decline,
+    Revoke,
+    Retry,
+}
+
+impl DeviceAction {
+    fn run(self, service: &DeviceService, id: &str) -> io::Result<String> {
+        match self {
+            Self::Request => {
+                let result = service.request_access(id)?;
+                Ok(result["status"].as_str().unwrap_or("Request sent").into())
+            }
+            Self::Remove => {
+                service.remove_target(id)?;
+                Ok("Outgoing connection removed".into())
+            }
+            Self::Allow => {
+                service.approve(id)?;
+                Ok("Incoming access allowed".into())
+            }
+            Self::Decline => {
+                service.decline(id)?;
+                Ok("Incoming request declined".into())
+            }
+            Self::Revoke => {
+                service.revoke_access(id)?;
+                Ok("Incoming access revoked".into())
+            }
+            Self::Retry => {
+                service.allow_requests(id)?;
+                Ok("New incoming requests allowed".into())
+            }
+        }
     }
 }
 

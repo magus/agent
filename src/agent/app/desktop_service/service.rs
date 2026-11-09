@@ -17,7 +17,7 @@ impl DesktopService {
     pub(super) fn new() -> io::Result<Self> {
         let executable = std::env::current_exe()?;
         let helper = executable.parent().unwrap().join("desktop_service");
-        let runtime_dir = crate::app::core::runtime_dir()?;
+        let runtime_dir = crate::platform::runtime_dir()?;
 
         Ok(Self {
             helper,

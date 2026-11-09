@@ -28,8 +28,8 @@ To stop the app and service, create a file named `stop` in the runtime directory
 launching again. Terminating the Rust process also stops its helper. It does not restart a crashed
 helper automatically.
 
-Closing the setup window leaves the service running. Reopen Agent to show it again, or use
-**Agent → Desktop permissions…**. **Quit Agent** stops both processes.
+Closing the setup window leaves the service running. Reopen it through
+**Agent → Desktop permissions…**. Reopening Agent shows the chat window. **Quit Agent** stops both processes.
 
 For permission diagnostics, run `open -n /path/to/Agent.app --args --permissions` and read
 `service.log` in the runtime directory. This reports Accessibility and Screen Recording grants

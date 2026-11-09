@@ -1,5 +1,5 @@
-use super::chatgpt_client::ChatGptClient;
 use super::login_timing::LoginTiming;
+use super::remote_account::RemoteAccount;
 use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::{ActiveTheme, Disableable, Icon};
@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 pub(crate) struct ChatGptSetup {
-    client: Arc<ChatGptClient>,
+    client: Arc<RemoteAccount>,
     account: Option<String>,
     busy: bool,
     signing_in: bool,
@@ -20,7 +20,7 @@ pub(crate) struct ChatGptSetup {
 }
 
 impl ChatGptSetup {
-    pub(crate) fn open(client: Arc<ChatGptClient>, cx: &mut App) {
+    pub(crate) fn open(client: Arc<RemoteAccount>, cx: &mut App) {
         if crate::app::core::window::activate(cx.default_global::<SetupWindow>().0, cx) {
             return;
         }
@@ -49,7 +49,7 @@ impl ChatGptSetup {
         cx.activate(true);
     }
 
-    fn new(client: Arc<ChatGptClient>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+    fn new(client: Arc<RemoteAccount>, window: &mut Window, cx: &mut Context<Self>) -> Self {
         cx.observe_window_activation(window, |view, window, _| {
             if window.is_window_active()
                 && let Some(timing) = view.login_timing
@@ -80,7 +80,7 @@ impl ChatGptSetup {
             account: None,
             busy: true,
             signing_in: false,
-            message: "Sign in, then test one model request using your ChatGPT plan.".into(),
+            message: "Sign in once for all devices connected to your service.".into(),
             cancelled: Arc::new(AtomicBool::new(false)),
             login_timing: None,
             ready_rendered: false,

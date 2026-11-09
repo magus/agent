@@ -12,26 +12,7 @@ gpui_kit::actions!(agent, [Quit, Reopen]);
 pub(crate) struct App;
 
 impl App {
-    pub(crate) fn run() -> io::Result<()> {
-        let argument_list: Vec<String> = std::env::args().skip(1).collect();
-        if let [command, path] = argument_list.as_slice()
-            && command == "--device"
-        {
-            return crate::app::devices::run_client(path);
-        }
-        let args = Args::parse(&argument_list)?;
-
-        match args {
-            Args::Help => {
-                println!(
-                    "Usage: Agent [--setup | --chatgpt | --devices | --permissions | --device REQUEST.json]"
-                );
-                return Ok(());
-            }
-            Args::Permissions => return desktop_service::diagnose(),
-            _ => {}
-        }
-
+    pub(crate) fn run(args: Args) -> io::Result<()> {
         let application = gpui_kit::application().with_assets(gpui_kit::assets::AllAssets);
         application.on_reopen(|cx| cx.dispatch_action(&Reopen));
 
@@ -58,11 +39,13 @@ impl App {
 
     fn init(args: Args, cx: &mut gpui_kit::App) -> io::Result<()> {
         desktop_service::init(args, cx)?;
-        chatgpt::init(args, cx)?;
-        crate::app::devices::init(args, cx)?;
+        let devices = crate::app::devices::init(args, cx)?;
+        let chat = crate::app::chat::init(args, devices, cx)?;
+        chatgpt::init(args, chat, cx)?;
 
         let mut menu_item_list = Vec::new();
 
+        menu_item_list.extend(crate::app::chat::menu_item_list());
         menu_item_list.extend(desktop_service::menu_item_list());
         menu_item_list.extend(chatgpt::menu_item_list());
         menu_item_list.extend(crate::app::devices::menu_item_list());

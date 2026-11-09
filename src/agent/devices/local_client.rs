@@ -12,8 +12,11 @@ use std::sync::Arc;
 use std::time::Duration;
 
 pub(crate) fn run(path: &str) -> io::Result<()> {
+    run_at(path, &crate::platform::runtime_dir()?)
+}
+
+pub(crate) fn run_at(path: &str, runtime_dir: &Path) -> io::Result<()> {
     let request: LocalRequest = serde_json::from_slice(&fs::read(path)?)?;
-    let runtime_dir = crate::app::core::runtime_dir()?;
     let mut stream = UnixStream::connect(runtime_dir.join("devices.sock"))?;
     stream.set_read_timeout(Some(Duration::from_secs(40)))?;
     transport::send(&mut stream, &request)?;
@@ -25,7 +28,7 @@ pub(crate) fn run(path: &str) -> io::Result<()> {
     Ok(())
 }
 
-pub(super) fn start(service: Arc<DeviceService>, runtime_dir: &Path) -> io::Result<()> {
+pub(crate) fn start(service: Arc<DeviceService>, runtime_dir: &Path) -> io::Result<()> {
     let path = runtime_dir.join("devices.sock");
     if let Ok(metadata) = fs::symlink_metadata(&path) {
         if UnixStream::connect(&path).is_ok() {
@@ -68,6 +71,8 @@ fn dispatch(service: &Arc<DeviceService>, request: LocalRequest) -> io::Result<V
         LocalRequest::AllowRequests { id } => service.allow_requests(&id),
         LocalRequest::Rename { name } => service.rename(name),
         LocalRequest::Discover => service.discover(),
+        LocalRequest::FindDevice { host } => service.find_device(&host),
+        LocalRequest::UseSystemName => service.use_system_name(),
         LocalRequest::RequestAccess { id } => service.request_access(&id),
         LocalRequest::Call { host, request } => service.call(&host, request),
     }
@@ -104,6 +109,10 @@ enum LocalRequest {
         name: String,
     },
     Discover,
+    FindDevice {
+        host: String,
+    },
+    UseSystemName,
     RequestAccess {
         id: String,
     },

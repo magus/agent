@@ -12,18 +12,31 @@ when its proof passes. Keep completed implementation history in delivery logs.
 - [x] Direct host-targeted tools, cancellation, and results available after reconnecting.
 - [x] Direct locked-mini proof with screenshots, Calculator, dragging, and long text entry.
 - [x] Device discovery, clear one-way access controls, and verification on both Macs.
-- [ ] **Next** Compact unified device list, system names, and verified IP or hostname entry.
-- [ ] Main chat interface and Rust agent loop using the existing ChatGPT connection and devices.
-- [ ] Saved conversation and tool history, Stop, and result retrieval after disconnection.
-- [ ] **Later** Model-driven locked-mini proof using those tools.
+- [x] Compact unified device list, system names, and verified IP or hostname entry.
+- [x] Main chat interface and Rust agent loop using the existing ChatGPT connection and devices.
+- [x] Saved conversation and tool history, Stop, and result retrieval after disconnection.
+- [x] Model-driven locked-mini proof using those tools.
+- [x] Record the sender device on each message so "here" and "this machine" have a clear default.
+- [x] Central service with shared conversations, central login, and per-conversation targets.
+- [x] Verify client disconnects and service restart without repeating actions.
+
+The [central-service plan](../central-service/README.md) replaces explicit conversation moves.
+The move implementation was removed. Conversations stay on the service and are accessible from
+every authorized client.
 
 Deferred login extras include account switching and an in-app usage display. They do not block
-pairing. Screenshot input belongs to the agent-loop proof, not the completed login proof.
+pairing. The agent-loop proof now includes screenshot input.
+
+## Development policy
+
+Backward compatibility is not required during early development. Remove unused fields and obsolete
+paths rather than preserving them for older builds. Preserve user data unless a change requires an
+explicit reset. Compatibility becomes a requirement only when explicitly agreed.
 
 ## Goal
 
-Run one user task through a Rust agent loop in Agent.app, using our existing desktop service on a
-locked Mac mini. Keep the GPUI interface small and show each action with its resulting screenshot.
+Run tasks through the central Rust service. Use Agent.app as the client and execution device,
+including desktop control on a locked Mac mini. Show actions and their resulting screenshots.
 
 ## Completed device pairing
 
@@ -65,14 +78,33 @@ Direct client calls passed in both directions. ChatGPT login is not required.
 - Verify cancellation and duplicate requests. Retain action and screenshot pairs for Calculator,
   dragging, and bulk text entry on the locked mini.
 
-## Next agent loop
+## Completed agent loop
 
-Use the proven device connections and tools from a Rust loop. Run the first persistent loop on the
-mini so it can continue when the laptop disconnects. Keep the design open to loops running on other
-devices later. Add task input, action history with screenshots, and Stop.
+The first proof ran the Rust loop in the app process. The central service now runs the loops.
+Agent opens a chat window with shared conversations, supported models, and a default target selector.
+Setup stays in separate windows under the Agent menu.
 
-Defer coordination between simultaneous desktop controllers. Do not add desktop reservations or
-scheduling to either milestone.
+The live proof used ChatGPT subscription access from the MacBook. A model-requested shell command
+ran on the mini. The model then used screenshots and keyboard input to calculate `9 × 221` in
+Calculator while the mini remained locked. The displayed result was `1989`.
+
+Conversation history, tool IDs, and screenshots are now saved on the central service. Stop prevents more submissions
+and requests cancellation. After a timeout or restart, Retrieve results reads the original request
+without repeating it. Interrupted tasks do not resume automatically.
+
+See the [delivery log](../../../logs/2026-11-09-04-41-agent-loop.md).
+
+## Central service
+
+The service owns conversation storage, ChatGPT login, and agent loops. Device apps provide shared
+chat access and execute authorized tools. The mini hosts the first service as a separate process.
+
+Each conversation stores an allowed-target list. MacBook-started conversations initially allow both
+MacBook and mini; mini-started conversations allow only mini. Opening a conversation elsewhere does
+not change that list. Device creation defaults affect new conversations only.
+
+See the [active plan](../central-service/README.md) and
+[delivery log](../../../logs/2026-11-09-15-37-central-service.md).
 
 ## Completed ChatGPT login proof
 
@@ -85,17 +117,6 @@ See the [login proof](../../../logs/2026-11-07-13-50-chatgpt-login.md),
 [reliability checks](../../../logs/2026-11-08-00-40-login-reliability.md), and
 [callback lifecycle](../../../logs/2026-11-08-02-14-persistent-login-callback.md) for details.
 
-## Agent-loop proof
-
-1. Sign in from Agent and confirm one screenshot-based model request uses subscription access.
-2. Accept one task and capture the locked desktop through the Swift service.
-3. Let the model choose a mouse, keyboard, drag, or bulk-text action using vision only.
-4. Execute through the service and show the returned screenshot alongside the action.
-5. Continue until the task finishes, the user stops it, or a concrete failure needs attention.
-
-Use Calculator for the first complete task. Then verify dragging and a long text paste in another
-app. The loop runs on the mini and must not depend on a connected MacBook or an unlocked desktop.
-
 ## Boundaries
 
 - Keep the Swift service responsible for capture and input. Keep task state and model interaction
@@ -106,4 +127,4 @@ app. The loop runs on the mini and must not depend on a connected MacBook or an 
 - Retain action results and screenshots locally. Do not replay input after an ambiguous failure.
 - Require a fresh capture after a service failure. Surface permission and login problems clearly.
 - Account for the existing locked-session menu-bar limitation. Do not claim universal app support.
-- Leave scheduling, messaging integrations, and multiple concurrent tasks for later.
+- Leave scheduling, messaging integrations, and coordination between separate conversations for later.

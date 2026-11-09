@@ -93,10 +93,12 @@ impl ToolStore {
                 Ok(result) => {
                     let computer_dispatched = matches!(job.tool, Tool::Computer { .. })
                         && result.get("dispatched") != Some(&Value::Bool(false));
-                    job.status = if result.get("ok") == Some(&Value::Bool(false)) {
-                        "failed"
-                    } else if cancelled.load(Ordering::Relaxed) && !computer_dispatched {
+                    let shell_failed =
+                        matches!(job.tool, Tool::Shell { .. }) && result["exit_code"] != 0;
+                    job.status = if cancelled.load(Ordering::Relaxed) && !computer_dispatched {
                         "cancelled"
+                    } else if result.get("ok") == Some(&Value::Bool(false)) || shell_failed {
+                        "failed"
                     } else {
                         "completed"
                     }
@@ -200,7 +202,7 @@ pub(super) enum Tool {
 }
 
 impl Tool {
-    fn validate(&self) -> io::Result<()> {
+    pub(super) fn validate(&self) -> io::Result<()> {
         match self {
             Self::Shell {
                 command,

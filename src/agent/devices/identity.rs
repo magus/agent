@@ -12,7 +12,10 @@ pub(super) struct Identity {
 
 impl Identity {
     pub fn load() -> io::Result<Self> {
-        let service = "com.iamnoah.agent.device";
+        Self::load_named("com.iamnoah.agent.device")
+    }
+
+    pub fn load_named(service: &str) -> io::Result<Self> {
         match passwords::get_generic_password(service, "identity") {
             Ok(bytes) => serde_json::from_slice(&bytes).map_err(io::Error::other),
             Err(error) if error.code() == -25300 => {
