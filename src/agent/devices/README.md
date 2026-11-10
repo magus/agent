@@ -73,7 +73,7 @@ Submit a shell request with a fresh UUID. Submission returns before execution fi
 
 For computer use, replace `tool` with
 `{"tool":"computer","action":{"operation":"capture"}}`.
-Other actions follow the [desktop service requests](../../../src/agent/app/desktop_service/README.md#requests).
+Other actions follow the [desktop service requests](../app/desktop_service/README.md#requests).
 Computer results include the capture metadata and `image_base64` containing JPEG bytes.
 
 Retrieve the result with the same `host` and

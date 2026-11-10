@@ -1,5 +1,5 @@
 use super::conversation::Conversation;
-use super::tool_schema::tool_schema;
+use super::model_request::model_request;
 use crate::devices::ToolConnection;
 use crate::protocol::Target;
 use crate::protocol::{ConversationView, Entry, ToolRequest};
@@ -94,12 +94,21 @@ impl AgentLoop {
         self.running.load(Ordering::SeqCst)
     }
 
+    pub fn set_model_settings(&self, settings: crate::protocol::ModelSettings) -> io::Result<()> {
+        let _execution = self.execution.lock().unwrap();
+        self.change(|conversation| {
+            conversation.model = settings.model;
+            conversation.reasoning_effort = settings.reasoning_effort;
+            Ok(())
+        })
+    }
+
     pub fn start(
         self: &Arc<Self>,
         sender: Target,
         message_id: String,
         prompt: String,
-        model: String,
+        settings: crate::protocol::ModelSettings,
     ) -> io::Result<()> {
         uuid::Uuid::parse_str(&message_id).map_err(io::Error::other)?;
         let _execution = self.execution.lock().unwrap();
@@ -111,7 +120,7 @@ impl AgentLoop {
         {
             return Ok(());
         }
-        if prompt.trim().is_empty() || model.is_empty() {
+        if prompt.trim().is_empty() || settings.model.is_empty() {
             return Err(io::Error::other("Choose a model, then enter a prompt."));
         }
         if self.running.swap(true, Ordering::SeqCst) {
@@ -123,10 +132,8 @@ impl AgentLoop {
                     "Retrieve pending tool results before sending another prompt.",
                 ));
             }
-            if conversation.model != model {
-                conversation.reasoning_effort = None;
-            }
-            conversation.model = model;
+            conversation.model = settings.model.clone();
+            conversation.reasoning_effort = settings.reasoning_effort.clone();
             conversation.status = "Running".into();
             let mut entry = Entry::text("You", &prompt);
             entry.sender = Some(sender.clone());
@@ -149,7 +156,7 @@ impl AgentLoop {
         self.stopped.store(false, Ordering::SeqCst);
         let agent = self.clone();
         std::thread::spawn(move || {
-            if let Err(error) = agent.run() {
+            if let Err(error) = agent.run(settings) {
                 agent.report(error.to_string());
             }
             let _ = agent.change(|conversation| {
@@ -243,7 +250,7 @@ impl AgentLoop {
         Ok(())
     }
 
-    pub(super) fn run(&self) -> io::Result<()> {
+    pub(super) fn run(&self, settings: crate::protocol::ModelSettings) -> io::Result<()> {
         loop {
             self.check_stopped()?;
             let mut target_list = Vec::new();
@@ -255,14 +262,12 @@ impl AgentLoop {
             }
             let request = {
                 let conversation = self.conversation.lock().unwrap();
-                let mut request = json!({"model":conversation.model, "store":false, "stream":true,
-                    "include":["reasoning.encrypted_content"], "parallel_tool_calls":false,
-                    "instructions":format!("{}\nAvailable devices {}\nCurrent loop host {}", include_str!("instructions.txt"), json!(target_list), json!(self.local)),
-                    "input":conversation.input_list, "tools":tool_schema()});
-                if let Some(effort) = &conversation.reasoning_effort {
-                    request["reasoning"] = json!({"effort": effort});
-                }
-                request
+                model_request(
+                    &settings,
+                    &conversation.input_list,
+                    &target_list,
+                    &self.local,
+                )
             };
             let client = self.client.clone();
             let (sender, receiver) = mpsc::sync_channel(1);

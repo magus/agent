@@ -56,7 +56,7 @@ fn service_catalog_round_trips_grants() {
 fn service_and_login_requests_validate_and_round_trip() {
     let request_list = [
         json!({"action":"list"}),
-        json!({"action":"send", "id":"chat", "message_id":"message", "prompt":"hello", "model":"model"}),
+        json!({"action":"send", "id":"chat", "message_id":"message", "prompt":"hello", "model":"model", "reasoning_effort":null}),
         json!({"action":"get", "id":"chat", "known_image_list":[]}),
         json!({"action":"set_targets", "id":"chat", "target_list":["mini"]}),
         json!({"action":"set_defaults", "target_list":["mini"]}),

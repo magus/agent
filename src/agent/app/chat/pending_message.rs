@@ -6,7 +6,7 @@ pub(super) struct PendingMessage {
     pub conversation_id: String,
     pub message_id: String,
     pub prompt: String,
-    pub model: String,
+    pub settings: crate::protocol::ModelSettings,
 }
 
 impl PendingMessage {
@@ -32,7 +32,10 @@ mod tests {
             conversation_id: "chat".into(),
             message_id: "receipt".into(),
             prompt: "Same text".into(),
-            model: "model".into(),
+            settings: crate::protocol::ModelSettings {
+                model: "model".into(),
+                reasoning_effort: None,
+            },
         };
         let mut conversation = ConversationView {
             id: "chat".into(),

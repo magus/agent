@@ -60,21 +60,13 @@ impl CentralService {
                 Ok(json!({"model_option_list": self.client.model_option_list()?}))
             }
             ServiceRequest::SetModelDefaults { settings } => {
-                let option_list = self.client.model_option_list()?;
-                let option = option_list
-                    .iter()
-                    .find(|option| option.model == settings.model)
-                    .ok_or_else(|| io::Error::other("Choose an available model."))?;
-                if settings
-                    .reasoning_effort
-                    .as_ref()
-                    .is_some_and(|effort| !option.reasoning_effort_list.contains(effort))
-                {
-                    return Err(io::Error::other(
-                        "This reasoning level is not available for that model.",
-                    ));
-                }
+                self.validate_model_settings(&settings)?;
                 self.store.set_model_settings(&sender.id, settings)?;
+                Ok(json!({"saved":true}))
+            }
+            ServiceRequest::SetConversationModel { id, settings } => {
+                self.validate_model_settings(&settings)?;
+                self.loop_for(&id)?.set_model_settings(settings)?;
                 Ok(json!({"saved":true}))
             }
             ServiceRequest::Account => Ok(json!({"account":self.client.account()?})),
@@ -129,8 +121,15 @@ impl CentralService {
                 message_id,
                 prompt,
                 model,
+                reasoning_effort,
             } => {
-                let result = self.loop_for(&id)?.start(sender, message_id, prompt, model);
+                let settings = crate::protocol::ModelSettings {
+                    model,
+                    reasoning_effort,
+                };
+                let result = self
+                    .loop_for(&id)?
+                    .start(sender, message_id, prompt, settings);
                 match result {
                     Ok(()) => Ok(json!({"accepted":true})),
                     Err(error) => Ok(json!({"accepted":false, "error":error.to_string()})),
@@ -172,6 +171,24 @@ impl CentralService {
         )?;
         loop_by_id.insert(id.into(), agent.clone());
         Ok(agent)
+    }
+
+    fn validate_model_settings(&self, settings: &crate::protocol::ModelSettings) -> io::Result<()> {
+        let option_list = self.client.model_option_list()?;
+        let option = option_list
+            .iter()
+            .find(|option| option.model == settings.model)
+            .ok_or_else(|| io::Error::other("Choose an available model."))?;
+        if settings
+            .reasoning_effort
+            .as_ref()
+            .is_some_and(|effort| !option.reasoning_effort_list.contains(effort))
+        {
+            return Err(io::Error::other(
+                "This reasoning level is not available for that model.",
+            ));
+        }
+        Ok(())
     }
 
     fn validate_targets(&self, target_list: &[String]) -> io::Result<()> {

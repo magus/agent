@@ -15,6 +15,10 @@ pub(crate) enum ServiceRequest {
     SetModelDefaults {
         settings: super::ModelSettings,
     },
+    SetConversationModel {
+        id: String,
+        settings: super::ModelSettings,
+    },
     Account,
     Create {
         id: String,
@@ -30,6 +34,7 @@ pub(crate) enum ServiceRequest {
         message_id: String,
         prompt: String,
         model: String,
+        reasoning_effort: Option<String>,
     },
     Stop {
         id: String,

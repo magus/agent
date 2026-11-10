@@ -48,7 +48,7 @@ Lock the Mac before sending desktop-control requests; the current service reject
 
 Use **Agent → Devices** to pair Macs over Tailscale and revoke access.
 Pairing is directional and requires approval on the target.
-See [direct tool calls](docs/plans/agent-core/tools.md) to run commands and desktop actions without a model.
+See [direct tool calls](src/agent/devices/README.md) to run commands and desktop actions without a model.
 
 ## chat
 

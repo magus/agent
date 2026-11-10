@@ -190,3 +190,7 @@ conversation persistence; `chatgpt/` owns credentials, refresh, and inference. T
 browser callback listener and sends the login result to the service. Shared views and service
 messages live in `src/agent/protocol/`. Pairing and execution endpoints live in `src/agent/devices/`.
 The shared runtime-directory lookup lives in `src/agent/platform/`.
+
+## Deferred account work
+
+Account switching and an in-app usage display remain deferred.

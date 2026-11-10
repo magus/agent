@@ -160,9 +160,17 @@ impl ChatClient {
         self.refresh()
     }
 
-    pub fn model_list(&self) -> io::Result<Vec<String>> {
-        let response = self.request(json!({"action":"models"}))?;
-        serde_json::from_value(response["model_list"].clone()).map_err(io::Error::other)
+    pub fn set_conversation_model(
+        &self,
+        service: &str,
+        id: &str,
+        settings: crate::protocol::ModelSettings,
+    ) -> io::Result<()> {
+        self.request_at(
+            service,
+            json!({"action":"set_conversation_model", "id":id, "settings":settings}),
+        )?;
+        self.refresh()
     }
 
     pub fn set_targets(&self, target_list: Vec<String>, defaults: bool) -> io::Result<()> {
@@ -189,7 +197,7 @@ impl ChatClient {
         conversation_id: String,
         message_id: String,
         prompt: String,
-        model: String,
+        settings: crate::protocol::ModelSettings,
     ) -> io::Result<String> {
         let _sending = self.sending.lock().unwrap();
         let id = &conversation_id;
@@ -197,7 +205,7 @@ impl ChatClient {
             return Err(io::Error::other("Create or open a conversation first."));
         }
         let path = self.directory.join("pending_message.json");
-        let mut request = json!({"action":"send", "id":id, "message_id":message_id, "prompt":prompt, "model":model});
+        let mut request = json!({"action":"send", "id":id, "message_id":message_id, "prompt":prompt, "model":settings.model, "reasoning_effort":settings.reasoning_effort});
         if let Ok(bytes) = fs::read(&path) {
             let pending: Value = serde_json::from_slice(&bytes)?;
             if pending["service_host"] != service_host
@@ -244,7 +252,8 @@ impl ChatClient {
                     entry.message_id = Some(message_id.clone());
                     entry.sender = Some(self.devices.local_device());
                     cached.conversation.entry_list.push(entry);
-                    cached.conversation.model = model;
+                    cached.conversation.model = settings.model;
+                    cached.conversation.reasoning_effort = settings.reasoning_effort;
                     cached.conversation.status = "Running".into();
                     cached.running = true;
                     self.revision.fetch_add(1, Ordering::Relaxed);

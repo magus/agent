@@ -1,14 +1,18 @@
 use super::chat_client::ChatClient;
+use super::composer::Composer;
+use super::conversation_notice::conversation_notice;
+use super::message_bubble::message_bubble;
 use super::pending_message::PendingMessage;
-use super::select_model::select_model;
-use crate::protocol::{ConversationView, Entry};
-use gpui_kit::base::{SelectableText, TextSelection};
-use gpui_kit::component::button::Button;
-use gpui_kit::component::input::{InputEvent, Textarea, TextareaState};
+use super::tool_row::ToolRow;
+use crate::protocol::{ConversationView, Entry, ModelOption, ModelSettings};
+use gpui_kit::base::TextSelection;
+use gpui_kit::component::button::{Button, ButtonVariants};
+use gpui_kit::component::input::{InputEvent, TextareaState};
 use gpui_kit::component::menu::{DropdownMenu, PopupMenuItem};
-use gpui_kit::component::text::TextView;
-use gpui_kit::component::{ActiveTheme, Disableable, IconName, Selectable};
+use gpui_kit::component::spinner::Spinner;
+use gpui_kit::component::{ActiveTheme, Disableable, Selectable, Sizable};
 use gpui_kit::{prelude::*, *};
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -16,8 +20,9 @@ pub(super) struct ChatWindow {
     agent: Arc<ChatClient>,
     _typing_subscription: Subscription,
     prompt: Entity<TextareaState>,
-    model_list: Vec<String>,
-    model: String,
+    model_option_list: Vec<ModelOption>,
+    settings: ModelSettings,
+    saving_settings: bool,
     loading: bool,
     sending: bool,
     pending_message: Option<PendingMessage>,
@@ -25,7 +30,7 @@ pub(super) struct ChatWindow {
     revision: u64,
     was_running: bool,
     scroll: ScrollHandle,
-    expanded_entry_set: std::collections::HashSet<usize>,
+    expanded_entry_set: std::collections::HashSet<String>,
     message: String,
     conversation: ConversationView,
     service_host: String,
@@ -81,12 +86,16 @@ impl ChatWindow {
                             let at_bottom =
                                 view.scroll.offset().y + view.scroll.max_offset().y <= px(20.);
                             let conversation = view.agent.view();
-                            if conversation.id != view.conversation.id {
-                                view.model = select_model(
-                                    &conversation.model,
-                                    &view.model,
-                                    &view.model_list,
-                                );
+                            if !view.saving_settings {
+                                view.settings = ModelSettings {
+                                    model: conversation.model.clone(),
+                                    reasoning_effort: conversation.reasoning_effort.clone(),
+                                };
+                                if view.settings.model.is_empty()
+                                    && let Some(option) = view.model_option_list.first()
+                                {
+                                    view.settings.model = option.model.clone();
+                                }
                             }
                             view.conversation = conversation;
                             if at_bottom {
@@ -133,8 +142,12 @@ impl ChatWindow {
             _typing_subscription: typing_subscription,
             agent,
             prompt,
-            model_list: Vec::new(),
-            model: conversation.model.clone(),
+            model_option_list: Vec::new(),
+            settings: ModelSettings {
+                model: conversation.model.clone(),
+                reasoning_effort: conversation.reasoning_effort.clone(),
+            },
+            saving_settings: false,
             loading: false,
             sending: false,
             pending_message: None,
@@ -220,14 +233,18 @@ impl ChatWindow {
         cx.spawn(async move |view, cx| {
             let result = cx
                 .background_executor()
-                .spawn(async move { client.model_list() })
+                .spawn(async move { client.model_option_list() })
                 .await;
             let _ = view.update(cx, |view, cx| {
                 view.loading = false;
                 match result {
-                    Ok(model_list) => {
-                        view.model = select_model("", &view.model, &model_list);
-                        view.model_list = model_list;
+                    Ok(option_list) => {
+                        if view.settings.model.is_empty()
+                            && let Some(option) = option_list.first()
+                        {
+                            view.settings.model = option.model.clone();
+                        }
+                        view.model_option_list = option_list;
                     }
                     Err(error) => view.message = error.to_string(),
                 }
@@ -235,6 +252,32 @@ impl ChatWindow {
             });
         })
         .detach();
+    }
+
+    fn save_settings(&mut self, settings: ModelSettings, cx: &mut Context<Self>) {
+        if self.saving_settings || self.conversation.id.is_empty() {
+            return;
+        }
+        self.settings = settings.clone();
+        self.saving_settings = true;
+        let service = self.service_host.clone();
+        let id = self.conversation.id.clone();
+        let agent = self.agent.clone();
+        cx.spawn(async move |view, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move { agent.set_conversation_model(&service, &id, settings) })
+                .await;
+            let _ = view.update(cx, |view, cx| {
+                view.saving_settings = false;
+                if let Err(error) = result {
+                    view.message = error.to_string();
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+        cx.notify();
     }
 
     fn set_devices(&mut self, device_list: Vec<String>, cx: &mut Context<Self>) {
@@ -292,7 +335,8 @@ impl ChatWindow {
             || self.loading
             || self.sending
             || self.pending_message.is_some()
-            || self.model.is_empty()
+            || self.settings.model.is_empty()
+            || self.saving_settings
             || self.conversation.pending()
         {
             return;
@@ -302,7 +346,7 @@ impl ChatWindow {
             conversation_id: self.conversation.id.clone(),
             message_id: uuid::Uuid::new_v4().to_string(),
             prompt,
-            model: self.model.clone(),
+            settings: self.settings.clone(),
         });
         self.prompt
             .update(cx, |input, cx| input.set_value("", window, cx));
@@ -331,7 +375,7 @@ impl ChatWindow {
                         pending.conversation_id,
                         pending.message_id,
                         pending.prompt,
-                        pending.model,
+                        pending.settings,
                     )
                 })
                 .await;
@@ -364,15 +408,6 @@ impl Render for ChatWindow {
         let running = self.agent.running();
         let target_list = self.agent.target_list();
         let available_target_list = self.agent.available_target_list();
-        let model_list = self.model_list.clone();
-        let model_view = cx.entity().downgrade();
-        let model_label = if self.loading {
-            "Loading models…".into()
-        } else if self.model.is_empty() {
-            "Choose model".into()
-        } else {
-            self.model.clone()
-        };
         let mut history = div()
             .id("history")
             .capture_any_mouse_down(cx.listener(|_, event: &MouseDownEvent, window, cx| {
@@ -386,8 +421,9 @@ impl Render for ChatWindow {
             .overflow_y_scroll()
             .flex()
             .flex_col()
-            .gap_5()
-            .p_5();
+            .gap_2()
+            .px_5()
+            .py_4();
         let mut entry_list = self.conversation.entry_list.clone();
         let pending = self.pending_message.as_ref().filter(|pending| {
             pending.service_host == self.service_host
@@ -401,54 +437,62 @@ impl Render for ChatWindow {
             entry_list.push(entry);
         }
         if entry_list.is_empty() {
-            history = history.child(div().text_color(cx.theme().muted_foreground).child(
-                if self.conversation.id.is_empty() {
-                    "Connect to a service, then create a conversation."
-                } else {
-                    "Send a message to begin."
-                },
-            ));
+            history = history.child(
+                div()
+                    .flex_1()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(if self.conversation.id.is_empty() {
+                        "Connect to a service, then create a conversation."
+                    } else {
+                        "What would you like to do?"
+                    }),
+            );
         }
         for (index, entry) in entry_list.iter().enumerate() {
             let mut item = div()
                 .id(("entry", index))
+                .w_full()
+                .max_w(px(900.))
+                .mx_auto()
+                .min_w_0()
                 .flex_shrink_0()
                 .flex()
                 .flex_col()
                 .gap_2();
-            let mut heading = entry.role.clone();
             if let Some(request) = &entry.request {
-                let name = available_target_list
-                    .iter()
-                    .find(|target| target.id == request.host)
-                    .map(|target| target.name.as_str())
-                    .unwrap_or(&request.host);
-                heading = format!("Tool · {name} · {}", request.status);
-            }
-            item = item.child(
-                div()
-                    .font_weight(FontWeight::MEDIUM)
-                    .child(SelectableText::new(("entry-role", index), heading)),
-            );
-            let computer = entry
-                .request
-                .as_ref()
-                .is_some_and(|request| request.tool["tool"] == "computer");
-            let expanded = self.expanded_entry_set.contains(&index);
-            let text = if computer && !expanded {
-                serde_json::to_string(&entry.request.as_ref().unwrap().tool["action"])
-                    .unwrap_or_default()
-            } else {
-                entry.text.clone()
-            };
-            if entry.role == "Agent" {
-                item = item.child(TextView::markdown(("message", index), text).selectable(true));
-            } else {
-                item = item.child(
-                    div()
-                        .text_sm()
-                        .child(SelectableText::new(("entry-text", index), text)),
+                let key = format!(
+                    "{}:{}:{}",
+                    self.service_host, self.conversation.id, request.id
                 );
+                let expanded = self.expanded_entry_set.contains(&key);
+                let view = cx.entity().downgrade();
+                let device_name = available_target_list
+                    .iter()
+                    .find(|device| device.id == request.host)
+                    .map(|device| device.name.clone())
+                    .unwrap_or_else(|| request.host.chars().take(8).collect());
+                item = item.child(ToolRow {
+                    entry: entry.clone(),
+                    device_name,
+                    expanded,
+                    on_toggle: Rc::new(move |cx| {
+                        let _ = view.update(cx, |view, cx| {
+                            if !view.expanded_entry_set.remove(&key) {
+                                view.expanded_entry_set.insert(key.clone());
+                            }
+                            cx.notify();
+                        });
+                    }),
+                });
+            } else {
+                item = item.my_2().child(message_bubble(
+                    index,
+                    entry.text.clone(),
+                    entry.role == "You",
+                ));
             }
             let delivery_failed = !self.sending
                 && pending.is_some_and(|pending| {
@@ -458,46 +502,70 @@ impl Render for ChatWindow {
                 item = item.child(
                     div()
                         .flex()
+                        .justify_end()
                         .items_center()
-                        .gap_3()
+                        .gap_2()
                         .text_sm()
-                        .text_color(cx.theme().muted_foreground)
+                        .text_color(rgb(0xe59a90))
                         .child("Delivery not confirmed")
                         .child(
                             Button::new("retry-message")
+                                .ghost()
+                                .compact()
                                 .label("Retry")
                                 .on_click(cx.listener(|view, _, _, cx| view.send_pending(cx))),
                         ),
                 );
             }
-            if computer {
-                item = item.child(
-                    Button::new(("details", index))
-                        .label(if expanded { "Hide details" } else { "Details" })
-                        .on_click(cx.listener(move |view, _, _, cx| {
-                            if !view.expanded_entry_set.remove(&index) {
-                                view.expanded_entry_set.insert(index);
-                            }
-                            cx.notify();
-                        })),
-                );
-            }
-            if let Some(path) = &entry.image {
-                item = item.child(
-                    img(path.clone())
-                        .w_full()
-                        .h(px(360.))
-                        .object_fit(ObjectFit::Contain),
-                );
-            }
             history = history.child(item);
         }
+        let waiting_for_model = (self.sending || running) && !self.conversation.pending();
+        if waiting_for_model {
+            history = history.child(
+                div()
+                    .id("model-activity")
+                    .w_full()
+                    .max_w(px(900.))
+                    .mx_auto()
+                    .flex_shrink_0()
+                    .px_4()
+                    .h(px(40.))
+                    .flex()
+                    .items_center()
+                    .gap_2()
+                    .text_sm()
+                    .text_color(cx.theme().muted_foreground)
+                    .child(Spinner::new().small())
+                    .child("Thinking"),
+            );
+        }
+        let empty = self.prompt.read(cx).value().trim().is_empty();
+        let stopping = running && empty;
+        let cannot_send = empty
+            || self.sending
+            || self.pending_message.is_some()
+            || running
+            || self.loading
+            || self.saving_settings
+            || self.settings.model.is_empty()
+            || self.conversation.id.is_empty()
+            || self.conversation.pending();
+        let settings_view = cx.entity().downgrade();
+        let send_view = cx.entity().downgrade();
+        let refresh_view = cx.entity().downgrade();
+        let status = if self.message.is_empty() {
+            conversation_notice(&self.conversation.status)
+        } else {
+            conversation_notice(&self.message)
+        };
+        let can_retrieve = self.conversation.pending() && !running;
+        let needs_notice = !status.is_empty() || can_retrieve;
         div()
             .size_full()
             .flex()
             .flex_col()
-            .bg(cx.theme().background)
-            .text_color(cx.theme().foreground)
+            .bg(rgb(0x191a1c))
+            .text_color(rgb(0xe8e9ed))
             .child({
                 let service_list = self.agent.service_list();
                 let conversation_list = self.agent.conversation_list();
@@ -514,9 +582,12 @@ impl Render for ChatWindow {
                     .items_center()
                     .flex_wrap()
                     .gap_3()
-                    .p_4()
+                    .px_4()
+                    .py_2()
                     .child(
                         Button::new("service")
+                            .ghost()
+                            .compact()
                             .label(self.agent.service_name())
                             .disabled(self.sending)
                             .dropdown_menu(move |mut menu, _, _| {
@@ -539,6 +610,8 @@ impl Render for ChatWindow {
                     )
                     .child(
                         Button::new("conversations")
+                            .ghost()
+                            .compact()
                             .label(selected_title)
                             .disabled(self.sending)
                             .dropdown_menu(move |mut menu, _, _| {
@@ -560,6 +633,8 @@ impl Render for ChatWindow {
                     )
                     .child(
                         Button::new("new-conversation")
+                            .ghost()
+                            .compact()
                             .label("New conversation")
                             .disabled(self.sending)
                             .on_click(cx.listener(|view, _, _, cx| {
@@ -570,49 +645,18 @@ impl Render for ChatWindow {
             .child(
                 div()
                     .flex()
-                    .items_center()
-                    .flex_wrap()
-                    .gap_3()
-                    .p_4()
-                    .border_b_1()
-                    .border_color(cx.theme().border)
-                    .child(
-                        Button::new("model")
-                            .label(model_label)
-                            .disabled(running || self.loading)
-                            .dropdown_menu(move |mut menu, _, _| {
-                                for model in &model_list {
-                                    let model = model.clone();
-                                    let view = model_view.clone();
-                                    menu = menu.item(PopupMenuItem::new(model.clone()).on_click(
-                                        move |_, _, cx| {
-                                            let _ = view.update(cx, |view, cx| {
-                                                view.model = model.clone();
-                                                cx.notify();
-                                            });
-                                        },
-                                    ));
-                                }
-                                menu
-                            }),
-                    )
-                    .child(
-                        Button::new("refresh-models")
-                            .label("Refresh models")
-                            .disabled(self.loading || running)
-                            .on_click(cx.listener(|view, _, _, cx| view.load_models(cx))),
-                    ),
-            )
-            .child(
-                div()
-                    .flex()
                     .flex_col()
                     .gap_2()
                     .px_4()
-                    .py_3()
+                    .py_2()
                     .border_b_1()
                     .border_color(cx.theme().border)
-                    .child(div().font_weight(FontWeight::SEMIBOLD).child("Devices"))
+                    .child(
+                        div()
+                            .text_xs()
+                            .text_color(cx.theme().muted_foreground)
+                            .child("Devices"),
+                    )
                     .child(div().flex().flex_wrap().gap_2().children(
                         available_target_list.iter().map(|device| {
                             let enabled = target_list.iter().any(|allowed| allowed.id == device.id);
@@ -636,6 +680,7 @@ impl Render for ChatWindow {
                             };
 
                             Button::new(SharedString::from(format!("device-{}", device.id)))
+                                .compact()
                                 .label(device.name.clone())
                                 .selected(enabled)
                                 .text_color(if enabled {
@@ -661,81 +706,70 @@ impl Render for ChatWindow {
             )
             .child(history)
             .child(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap_3()
-                    .p_4()
-                    .border_t_1()
-                    .border_color(cx.theme().border)
-                    .when(!self.message.is_empty(), |view| {
-                        view.child(self.message.clone())
-                    })
-                    .when(!self.conversation.status.is_empty(), |view| {
-                        view.child(
-                            div()
-                                .text_sm()
-                                .text_color(cx.theme().muted_foreground)
-                                .child(self.conversation.status.clone()),
-                        )
-                    })
-                    .when(self.conversation.pending(), |view| {
-                        view.child(
-                            Button::new("retrieve")
-                                .label("Retrieve results")
-                                .disabled(running)
-                                .on_click(cx.listener(|view, _, _, cx| {
-                                    view.perform(cx, |agent| agent.retrieve());
-                                })),
-                        )
-                    })
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_3()
-                            .p_2()
-                            .rounded_lg()
-                            .border_1()
-                            .border_color(cx.theme().border)
-                            .child(
-                                div().flex_1().child(
-                                    Textarea::new(&self.prompt)
-                                        .appearance(false)
-                                        .bordered(false),
-                                ),
+                div().flex_shrink_0().px_3().pb_3().child(
+                    div()
+                        .w_full()
+                        .max_w(px(900.))
+                        .mx_auto()
+                        .relative()
+                        .when(needs_notice, |view| {
+                            view.child(
+                                div()
+                                    .absolute()
+                                    .bottom_full()
+                                    .left_0()
+                                    .right_0()
+                                    .mb_2()
+                                    .p_2()
+                                    .rounded_md()
+                                    .bg(rgb(0x28292c))
+                                    .flex()
+                                    .items_center()
+                                    .gap_2()
+                                    .text_xs()
+                                    .text_color(cx.theme().muted_foreground)
+                                    .child(div().flex_1().min_w_0().child(status.to_owned()))
+                                    .when(can_retrieve, |view| {
+                                        view.child(
+                                            Button::new("retrieve")
+                                                .ghost()
+                                                .compact()
+                                                .label("Retrieve results")
+                                                .on_click(cx.listener(|view, _, _, cx| {
+                                                    view.perform(cx, |agent| agent.retrieve())
+                                                })),
+                                        )
+                                    }),
                             )
-                            .child({
-                                let empty = self.prompt.read(cx).value().trim().is_empty();
-                                let stopping = running && empty;
-                                let cannot_send = empty
-                                    || self.sending
-                                    || self.pending_message.is_some()
-                                    || running
-                                    || self.loading
-                                    || self.model.is_empty()
-                                    || self.conversation.pending();
-
-                                Button::new("send-stop")
-                                    .icon(if stopping {
-                                        IconName::Square
-                                    } else {
-                                        IconName::ArrowUp
-                                    })
-                                    .accessibility_label(if stopping { "Stop" } else { "Send" })
-                                    .tooltip(if stopping { "Stop" } else { "Send · Enter" })
-                                    .rounded_full()
-                                    .disabled(!stopping && cannot_send)
-                                    .on_click(cx.listener(move |view, _, window, cx| {
-                                        if stopping {
-                                            view.message = "Stopping…".into();
-                                            view.perform(cx, |agent| agent.stop());
-                                        } else {
-                                            view.send(window, cx);
-                                        }
-                                    }))
+                        })
+                        .child(Composer {
+                            prompt: self.prompt.clone(),
+                            option_list: self.model_option_list.clone(),
+                            settings: self.settings.clone(),
+                            loading: self.loading,
+                            saving: self.saving_settings,
+                            can_configure: !self.conversation.id.is_empty(),
+                            cannot_send,
+                            stopping,
+                            on_settings: Rc::new(move |settings, cx| {
+                                let _ = settings_view
+                                    .update(cx, |view, cx| view.save_settings(settings, cx));
                             }),
-                    ),
+                            on_refresh: Rc::new(move |cx| {
+                                let _ = refresh_view.update(cx, |view, cx| view.load_models(cx));
+                            }),
+                            on_submit: Rc::new(move |window, cx| {
+                                let _ = send_view.update(cx, |view, cx| {
+                                    if stopping {
+                                        view.message = "Stopping…".into();
+                                        view.perform(cx, |agent| agent.stop());
+                                    } else {
+                                        view.send(window, cx);
+                                    }
+                                });
+                            }),
+                        }),
+                ),
             )
     }
 }
