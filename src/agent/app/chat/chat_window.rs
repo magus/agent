@@ -49,8 +49,9 @@ impl ChatWindow {
                 cx,
             ))),
             titlebar: Some(TitlebarOptions {
-                title: Some("Agent".into()),
-                ..Default::default()
+                title: None,
+                appears_transparent: true,
+                traffic_light_position: Some(point(px(12.), px(16.))),
             }),
             ..Default::default()
         };
@@ -580,10 +581,11 @@ impl Render for ChatWindow {
                 div()
                     .flex()
                     .items_center()
-                    .flex_wrap()
+                    .h(px(40.))
+                    .flex_shrink_0()
                     .gap_3()
-                    .px_4()
-                    .py_2()
+                    .pl(px(84.))
+                    .pr_4()
                     .child(
                         Button::new("service")
                             .ghost()
