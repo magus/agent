@@ -1,0 +1,138 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1254" height="1254" viewBox="0 0 1254 1254" role="img" aria-labelledby="title desc" color-interpolation-filters="sRGB">
+<title id="title">Agent</title>
+<desc id="desc">A glossy ivory porcelain companion with three connected domes on textured charcoal.</desc>
+<defs>
+  <linearGradient id="tile" x1="0" y1="0" x2=".8" y2="1">
+    <stop stop-color="#424248"/><stop offset=".2" stop-color="#303034"/><stop offset=".75" stop-color="#27272a"/><stop offset="1" stop-color="#19191b"/>
+  </linearGradient>
+  <linearGradient id="edge" x2="0" y2="1">
+    <stop stop-color="#77777c" stop-opacity=".65"/><stop offset=".16" stop-color="#444449" stop-opacity=".2"/><stop offset=".8" stop-color="#080809" stop-opacity=".3"/><stop offset="1" stop-color="#060607" stop-opacity=".8"/>
+  </linearGradient>
+  <radialGradient id="body" cx=".32" cy=".18" r=".86">
+    <stop stop-color="#fffdf8"/><stop offset=".28" stop-color="#f8efe2"/><stop offset=".6" stop-color="#e6d4ba"/><stop offset=".85" stop-color="#c8b18e"/><stop offset="1" stop-color="#9e8664"/>
+  </radialGradient>
+  <radialGradient id="dome" cx=".5" cy=".46" r=".57" fx=".32" fy=".2">
+    <stop stop-color="#fffaf4"/><stop offset=".3" stop-color="#f5eadd"/>
+    <stop offset=".62" stop-color="#e6d6c1"/><stop offset=".83" stop-color="#c3ab8b"/>
+    <stop offset=".96" stop-color="#b7a07f"/><stop offset="1" stop-color="#d6c0a0"/>
+  </radialGradient>
+  <radialGradient id="rim" cx=".4" cy=".32" r=".72">
+    <stop offset=".76" stop-color="#fff8ed" stop-opacity="0"/><stop offset=".91" stop-color="#fff8ed" stop-opacity=".08"/><stop offset=".97" stop-color="#fff7e7" stop-opacity=".25"/><stop offset="1" stop-color="#b29b7a" stop-opacity=".25"/>
+  </radialGradient>
+  <linearGradient id="neck" x1="0" y1="0" x2="1" y2=".1">
+    <stop stop-color="#fffaf0"/><stop offset=".2" stop-color="#ecdfcb"/><stop offset=".56" stop-color="#d1bda0"/><stop offset=".85" stop-color="#dfcdb3"/><stop offset="1" stop-color="#fff7e9"/>
+  </linearGradient>
+  <linearGradient id="arm" x1="0" y1="0" x2=".2" y2="1">
+    <stop stop-color="#fffaf0"/><stop offset=".3" stop-color="#efe1cd"/><stop offset=".68" stop-color="#d9c4a5"/><stop offset="1" stop-color="#aa906c"/>
+  </linearGradient>
+  <linearGradient id="eye" x1="0" y1="0" x2=".65" y2="1">
+    <stop stop-color="#060605"/><stop offset=".35" stop-color="#161514"/><stop offset="1" stop-color="#252426"/>
+  </linearGradient>
+  <linearGradient id="eye-rim" x1="0" y1="0" x2=".2" y2="1">
+    <stop stop-color="#927956"/><stop offset=".35" stop-color="#cbb08a"/><stop offset=".8" stop-color="#fff6de"/><stop offset="1" stop-color="#fffdf4"/>
+  </linearGradient>
+  <linearGradient id="shine" x2=".3" y2="1">
+    <stop stop-color="#fff" stop-opacity=".98"/><stop offset="1" stop-color="#fffdf8" stop-opacity=".74"/>
+  </linearGradient>
+  <filter id="tile-shadow" x="-.2" y="-.2" width="1.4" height="1.5"><feGaussianBlur stdDeviation="16"/></filter>
+  <filter id="shadow" x="-.25" y="-.25" width="1.5" height="1.6"><feGaussianBlur stdDeviation="15"/></filter>
+  <filter id="contact" x="-.25" y="-.25" width="1.5" height="1.6"><feGaussianBlur stdDeviation="4"/></filter>
+  <filter id="join-softness"><feGaussianBlur stdDeviation="8"/></filter>
+  <filter id="eye-softness"><feGaussianBlur stdDeviation="1.3"/></filter>
+  <filter id="reflection-softness"><feGaussianBlur stdDeviation="1.5"/></filter>
+  <filter id="soft"><feGaussianBlur stdDeviation="3"/></filter>
+  <filter id="grain" x="0" y="0" width="1" height="1">
+    <feTurbulence type="fractalNoise" baseFrequency=".12 .7" numOctaves="2" seed="14" stitchTiles="stitch"/>
+    <feColorMatrix type="saturate" values="0"/>
+    <feComponentTransfer><feFuncA type="linear" slope="0" intercept="1"/></feComponentTransfer>
+    <feConvolveMatrix order="3" kernelMatrix="0 -1 0 0 0 0 0 1 0" divisor="1" bias=".5" preserveAlpha="true"/>
+  </filter>
+  <pattern id="directional-grain" width="2048" height="2048" patternUnits="userSpaceOnUse" patternTransform="rotate(-38)">
+    <rect width="2048" height="2048" fill="#808080" filter="url(#grain)"/>
+  </pattern>
+  <path id="tile-shape" d="M305 79H945C1095 79 1177 156 1177 307V948C1177 1100 1098 1177 946 1177H306C153 1177 77 1101 77 948V307C77 155 155 79 305 79Z"/>
+  <clipPath id="tile-clip"><use href="#tile-shape"/></clipPath>
+  <path id="sculpture" d="M625 157C564 157 514 207 514 268C514 313 537 341 562 366C587 391 589 437 573 465C556 496 515 510 485 537C437 580 416 634 414 694C412 739 390 771 359 786C328 801 308 794 281 788C220 774 161 816 156 878C150 943 194 994 251 996C299 999 341 968 356 923C371 881 391 856 420 849C451 841 476 855 505 871C579 912 679 910 751 872C785 852 807 838 836 849C870 861 882 894 895 930C911 972 947 998 991 997C1052 996 1096 950 1095 892C1094 828 1042 779 983 787C949 790 928 806 892 789C851 770 834 739 832 697C829 631 808 582 763 539C730 508 693 495 676 464C661 436 662 394 687 367C715 338 737 310 737 268C737 206 688 157 625 157Z"/>
+  <clipPath id="porcelain-clip"><use href="#sculpture"/></clipPath>
+  <g id="satellite">
+    <circle r="108" fill="url(#dome)" filter="url(#join-softness)"/>
+    <circle r="100" fill="none" stroke="url(#dome-reflection)" stroke-width="3.5" opacity=".62" filter="url(#eye-softness)"/>
+    <path d="M-61-31C-60-55-42-73-16-76C-5-76 3-73 10-69C-7-56-20-42-29-28Z" fill="url(#shine)" filter="url(#reflection-softness)"/>
+  </g>
+<linearGradient id="porcelain-bevel" x1="0" y1="0" x2=".45" y2="1">
+    <stop stop-color="#fffdf9"/><stop offset=".45" stop-color="#fff8ed"/>
+    <stop offset=".7" stop-color="#efdbc0"/><stop offset="1" stop-color="#b49b78"/>
+  </linearGradient>
+  <linearGradient id="tile-bevel" x1="0" y1="0" x2=".35" y2="1">
+    <stop stop-color="#d5d2db"/><stop offset=".2" stop-color="#707079"/>
+    <stop offset=".65" stop-color="#101013"/><stop offset="1" stop-color="#000"/>
+  </linearGradient>
+
+<linearGradient id="dome-reflection" x1=".1" y1="0" x2=".8" y2="1">
+    <stop stop-color="#fffdf9" stop-opacity=".95"/>
+    <stop offset=".28" stop-color="#fffaf2" stop-opacity=".65"/>
+    <stop offset=".48" stop-color="#fffaf2" stop-opacity="0"/>
+    <stop offset=".8" stop-color="#fff3dd" stop-opacity="0"/>
+    <stop offset="1" stop-color="#fff1d5" stop-opacity=".35"/>
+  </linearGradient>
+  <linearGradient id="neck-glint" x1="0" y1="0" x2="1" y2="0">
+    <stop stop-color="#fffdf9" stop-opacity=".9"/>
+    <stop offset=".45" stop-color="#fffaf2" stop-opacity="0"/>
+    <stop offset="1" stop-color="#fffaf2" stop-opacity=".2"/>
+  </linearGradient>
+<filter id="join-fade" x="-.5" y="-.5" width="2" height="2"><feGaussianBlur stdDeviation="15"/></filter>
+  <mask id="right-join-reflection" maskUnits="userSpaceOnUse" x="-120" y="-120" width="240" height="240">
+    <rect x="-120" y="-120" width="240" height="240" fill="white"/>
+    <ellipse cx="-87" cy="-42" rx="38" ry="66" fill="black" filter="url(#join-fade)"/>
+  </mask>
+  <g id="right-satellite">
+    <circle r="108" fill="url(#dome)" filter="url(#join-softness)"/>
+    <circle r="100" fill="none" mask="url(#right-join-reflection)" stroke="url(#dome-reflection)" stroke-width="3.5" opacity=".62" filter="url(#eye-softness)"/>
+    <path d="M-61-31C-60-55-42-73-16-76C-5-76 3-73 10-69C-7-56-20-42-29-28Z" fill="url(#shine)" filter="url(#reflection-softness)"/>
+  </g>
+</defs>
+<use href="#tile-shape" fill="#000" opacity=".26" transform="translate(0 18)" filter="url(#tile-shadow)"/>
+<use href="#tile-shape" fill="url(#tile)"/>
+<g clip-path="url(#tile-clip)">
+  <g filter="url(#soft)"><use href="#tile-shape" fill="none" stroke="url(#tile-bevel)" stroke-width="70" opacity="0.025"/>
+  <use href="#tile-shape" fill="none" stroke="url(#tile-bevel)" stroke-width="54" opacity="0.035"/>
+  <use href="#tile-shape" fill="none" stroke="url(#tile-bevel)" stroke-width="40" opacity="0.05"/>
+  <use href="#tile-shape" fill="none" stroke="url(#tile-bevel)" stroke-width="28" opacity="0.07"/>
+  <use href="#tile-shape" fill="none" stroke="url(#tile-bevel)" stroke-width="18" opacity="0.09"/>
+  <use href="#tile-shape" fill="none" stroke="url(#tile-bevel)" stroke-width="10" opacity="0.12"/>
+  <use href="#tile-shape" fill="none" stroke="url(#tile-bevel)" stroke-width="4" opacity="0.16"/>
+  <use href="#tile-shape" fill="none" stroke="url(#tile-bevel)" stroke-width="1" opacity="0.18"/>
+  </g><use href="#tile-shape" fill="url(#directional-grain)" opacity=".07" style="mix-blend-mode:soft-light"/>
+  <use href="#sculpture" fill="#000" opacity=".8" transform="translate(9 22)" filter="url(#shadow)"/>
+  <use href="#sculpture" fill="#000" opacity=".8" transform="translate(3 9)" filter="url(#contact)"/>
+  <g clip-path="url(#porcelain-clip)"><use href="#sculpture" fill="url(#body)"/>
+  <path d="M555 348C597 373 655 378 694 348C663 391 661 434 676 464C689 487 708 500 731 515C676 491 577 492 521 516C551 498 566 484 576 463C592 426 584 383 555 348Z" fill="url(#neck)" filter="url(#join-softness)"/>
+  <path d="M302 796C358 818 409 775 422 724L477 817C437 834 389 825 365 889L346 930Z" fill="url(#arm)" filter="url(#join-softness)"/>
+  <path d="M948 796C889 818 840 775 827 724L774 817C818 829 860 832 886 889L907 930Z" fill="url(#arm)" filter="url(#join-softness)"/>
+
+  <path d="M563 371C583 397 588 430 578 455C568 481 548 493 532 505C555 492 578 486 599 485C586 465 589 450 590 431C591 408 582 382 563 371Z" fill="#fffaf2" opacity=".8" filter="url(#soft)"/>
+  <path d="M667 383C656 412 657 445 672 466C681 479 697 491 714 502C689 490 674 485 660 480C652 449 651 415 667 383Z" fill="#fff7eb" opacity=".38" filter="url(#soft)"/>
+  <path d="M320 800C359 806 402 779 419 744C405 785 368 817 328 811Z" fill="#fffaf3" opacity=".86" filter="url(#soft)"/>
+  <path d="M834 747C853 783 888 807 928 800L921 812C884 815 848 788 834 747Z" fill="#fffaf3" opacity=".75" filter="url(#soft)"/>
+  <ellipse cx="625" cy="696" rx="207" ry="199" fill="url(#dome)" filter="url(#join-softness)"/>
+
+  <path d="M463 619C477 567 523 523 574 512C522 534 485 575 472 619Z" fill="#fffaf5" opacity=".65" filter="url(#reflection-softness)"/>
+  <path d="M490 552C529 518 574 505 616 507C651 508 680 516 705 530C657 514 614 511 578 520C545 527 515 538 490 552Z" fill="#fffaf3" opacity=".38" filter="url(#soft)"/>
+  <path d="M520 609C526 571 555 541 587 534C608 529 628 534 647 541C619 561 598 586 581 613Z" fill="url(#shine)" filter="url(#reflection-softness)"/>
+  <use href="#satellite" transform="translate(625 266) scale(1.035)"/>
+  <use href="#satellite" transform="translate(260 889) scale(.985)"/>
+  <use href="#right-satellite" transform="translate(990 889) scale(.985)"/>
+<use href="#sculpture" fill="none" stroke="url(#porcelain-bevel)" stroke-width="42" opacity="0.035"/>
+  <use href="#sculpture" fill="none" stroke="url(#porcelain-bevel)" stroke-width="32" opacity="0.045"/>
+  <use href="#sculpture" fill="none" stroke="url(#porcelain-bevel)" stroke-width="24" opacity="0.06"/>
+  <use href="#sculpture" fill="none" stroke="url(#porcelain-bevel)" stroke-width="17" opacity="0.09"/>
+  <use href="#sculpture" fill="none" stroke="url(#porcelain-bevel)" stroke-width="11" opacity="0.12"/>
+  <use href="#sculpture" fill="none" stroke="url(#porcelain-bevel)" stroke-width="6" opacity="0.2"/>
+  <use href="#sculpture" fill="none" stroke="url(#porcelain-bevel)" stroke-width="2" opacity="0.25"/>
+  <use href="#sculpture" fill="none" stroke="url(#neck-glint)" stroke-width="8" opacity=".4"/>
+  <ellipse cx="530" cy="689" rx="30" ry="47" filter="url(#eye-softness)" fill="url(#eye-rim)"/>
+  <ellipse cx="720" cy="689" rx="30" ry="47" filter="url(#eye-softness)" fill="url(#eye-rim)"/>
+  <ellipse cx="530" cy="689" rx="26" ry="43" fill="url(#eye)"/>
+  <ellipse cx="720" cy="689" rx="26" ry="43" fill="url(#eye)"/>
+</g></g>
+</svg>
