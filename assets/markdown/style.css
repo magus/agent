@@ -1,0 +1,22 @@
+:root { color-scheme: light dark; }
+html, body { margin: 0; padding: 0; background: transparent; }
+body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; line-height: 1.5; color: CanvasText; overflow: hidden; }
+main { overflow-wrap: anywhere; display: flow-root; }
+main > :first-child { margin-top: 0; }
+main > :last-child { margin-bottom: 0; }
+p, ul, ol, blockquote, pre, table { margin-block: 0.75em; }
+h1, h2, h3, h4, h5, h6 { line-height: 1.2; margin-block: 0.9em 0.4em; }
+h1 { font-size: 1.6em; }
+h2 { font-size: 1.4em; }
+h3 { font-size: 1.2em; }
+ul, ol { padding-inline-start: 1.6em; }
+blockquote { margin-inline: 0; padding-inline-start: 1em; border-inline-start: 3px solid GrayText; }
+a { color: LinkText; text-decoration: underline; }
+code { font-family: ui-monospace, monospace; font-size: 0.9em; }
+pre { overflow-x: auto; white-space: pre; padding: 0.85em; border-radius: 8px; background: light-dark(#f0f0f0, #262626); }
+pre code { white-space: pre; overflow-wrap: normal; }
+table { display: block; overflow-x: auto; border-collapse: collapse; }
+th, td { padding: 0.4em 0.7em; border: 1px solid GrayText; text-align: start; }
+hr { border: 0; border-top: 1px solid GrayText; }
+
+[data-markdown="code-header"] { display: none; }

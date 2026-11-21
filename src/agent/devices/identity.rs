@@ -25,9 +25,10 @@ impl Identity {
                     .map_err(|_| io::Error::other("Could not save device identity in Keychain"))?;
                 Ok(identity)
             }
-            Err(_) => Err(io::Error::other(
-                "Could not read device identity from Keychain",
-            )),
+            Err(error) => Err(io::Error::other(format!(
+                "Could not read device identity from Keychain ({})",
+                error.code()
+            ))),
         }
     }
 

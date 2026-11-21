@@ -31,7 +31,12 @@ fn conversation_response_round_trips_history_and_tools() {
 
     let response: ConversationResponse = serde_json::from_value(payload.clone()).unwrap();
 
-    assert!(response.conversation.pending());
+    let request = response.conversation.entry_list[0]
+        .request
+        .as_ref()
+        .unwrap();
+
+    assert!(!request.finished);
     assert_eq!(serde_json::to_value(response).unwrap(), payload);
 }
 

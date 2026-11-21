@@ -1,6 +1,6 @@
 # macOS packaging
 
-Run from the repository root. Requires macOS 15+, Xcode with the Metal toolchain, Rust/Cargo,
+Run from the repository root. Requires macOS 15+, Xcode, Node.js/npm, Rust/Cargo,
 and a usable Developer ID Application certificate in Keychain.
 
 ```sh
@@ -8,9 +8,9 @@ and a usable Developer ID Application certificate in Keychain.
 open dist/Agent.app
 ```
 
-The script compiles Rust and Swift for the host architecture with a macOS 15 deployment target.
-It copies `Agent.app.template`, fills in the Cargo package version, and signs the bundle.
-The template's executable symlinks point into `.build/`; copying replaces them with actual files.
+The script runs the shared [native Apple build](../apple/README.md) for Apple silicon with a macOS 15
+deployment target. The build uses `Agent.app.template/Contents/Info.plist`, fills in the Cargo package
+version, and signs the native interface, independent service, and desktop helper.
 The previous `dist/Agent.app` is replaced only after the requested checks pass.
 
 ## Signing and permissions
@@ -23,7 +23,7 @@ Keep these identifiers and the signing identity stable across builds. Install an
 copy at a stable location before granting permissions. Building does not update an installed copy.
 
 Launch through `open` so macOS attributes permission use to Agent.app.
-See [service commands](../../src/agent/app/desktop_service/README.md) for runtime and permission diagnostics.
+See [service commands](../../src/desktop_service/README.md) for runtime requests.
 
 ## Notarization
 

@@ -1,4 +1,5 @@
 use super::device_service::{DeviceService, RemoteRequest};
+#[cfg(not(target_os = "ios"))]
 use super::tool_store::Tool;
 use crate::protocol::Target;
 use serde_json::Value;
@@ -30,6 +31,7 @@ impl ToolConnection {
         self.call(host, RemoteRequest::Info)
     }
 
+    #[cfg(not(target_os = "ios"))]
     pub(crate) fn validate(&self, host: &str, tool: &Value) -> io::Result<()> {
         if !self.target_list().iter().any(|target| target.id == host) {
             return Err(io::Error::other(
@@ -40,6 +42,7 @@ impl ToolConnection {
         tool.validate()
     }
 
+    #[cfg(not(target_os = "ios"))]
     pub(crate) fn submit(&self, host: &str, id: &str, tool: Value) -> io::Result<Value> {
         let tool: Tool = serde_json::from_value(tool)?;
         self.call(
@@ -51,10 +54,12 @@ impl ToolConnection {
         )
     }
 
+    #[cfg(not(target_os = "ios"))]
     pub(crate) fn status(&self, host: &str, id: &str) -> io::Result<Value> {
         self.call(host, RemoteRequest::Status { id: id.into() })
     }
 
+    #[cfg(not(target_os = "ios"))]
     pub(crate) fn status_for(&self, host: &str, id: &str, owner: &str) -> io::Result<Value> {
         let local = self.local_device();
         if host == local.id && !owner.is_empty() {
@@ -70,6 +75,7 @@ impl ToolConnection {
         self.status(host, id)
     }
 
+    #[cfg(not(target_os = "ios"))]
     pub(crate) fn cancel(&self, host: &str, id: &str) -> io::Result<Value> {
         self.call(host, RemoteRequest::Cancel { id: id.into() })
     }
@@ -86,7 +92,7 @@ impl ToolConnection {
         }
         match request {
             RemoteRequest::Info => {
-                Ok(serde_json::json!({"name": local.name, "tool_list": ["shell", "computer"]}))
+                Ok(serde_json::json!({"name": local.name, "tool_list": self.service.tool_list()}))
             }
             RemoteRequest::Submit { id, tool } => {
                 serde_json::to_value(self.service.tools.submit(host, &id, tool)?)

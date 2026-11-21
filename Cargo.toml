@@ -8,13 +8,15 @@ publish = false
 name = "agent"
 path = "src/agent/main.rs"
 
+[lib]
+name = "agent_client"
+path = "src/agent/lib.rs"
+crate-type = ["staticlib", "rlib"]
+
 [dependencies]
 base64 = "0.22"
-gpui-kit = "=0.7.1"
 jsonwebtoken = "9.3"
 libc = "0.2"
-objc2 = "0.6"
-raw-window-handle = "0.6"
 rcgen = "0.14"
 rustls = { version = "0.23", default-features = false, features = ["std", "ring", "tls12"] }
 security-framework = "3.7"

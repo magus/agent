@@ -1,7 +1,5 @@
 # TODO
 
-- Use [Pierre Words for markdown rendering](docs/plans/markdown-rendering/README.md)
-
 - Native UI follow-ups
   - Verify shared chat and an authorized remote tool call on a physical iPhone.
   - Verify extending text selection with touch handles on iPhone.

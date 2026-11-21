@@ -84,7 +84,7 @@ impl DeviceService {
         )
     }
 
-    pub fn pair(&self, invitation: &str) -> io::Result<Value> {
+    pub fn pair(self: &std::sync::Arc<Self>, invitation: &str) -> io::Result<Value> {
         let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
             .decode(invitation)
             .map_err(|_| io::Error::other("Invalid invitation"))?;
@@ -92,6 +92,13 @@ impl DeviceService {
             io::Error::other("Invalid invitation. Copy a new invitation from the other device.")
         })?;
         validate_address(invitation.device.address)?;
+        #[cfg(target_os = "ios")]
+        if self.listening.lock().unwrap().is_none() {
+            let route = std::net::UdpSocket::bind("0.0.0.0:0")?;
+            route.connect(invitation.device.address)?;
+            let address = std::net::SocketAddr::new(route.local_addr()?.ip(), self.port + 2);
+            self.listen(address)?;
+        }
         let device = self.local_device()?;
         if device.id() == invitation.device.id() {
             return Err(io::Error::other("Cannot pair a device with itself"));

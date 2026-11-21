@@ -233,6 +233,14 @@ impl ChatGptClient {
     }
 
     pub(crate) fn respond(&self, request: &Value) -> io::Result<Value> {
+        self.respond_with_text(request, |_, _| Ok(()))
+    }
+
+    pub(crate) fn respond_with_text(
+        &self,
+        request: &Value,
+        on_text: impl FnMut(usize, &str) -> io::Result<()>,
+    ) -> io::Result<Value> {
         let authorization = self.authorization()?;
         let mut response = self
             .http
@@ -245,9 +253,8 @@ impl ChatGptClient {
             .body_mut()
             .with_config()
             .limit(16 * 1024 * 1024)
-            .read_to_string()
-            .map_err(network_error)?;
-        completed_response(&body)
+            .reader();
+        read_response(std::io::BufReader::new(body), on_text)
     }
 
     pub(crate) fn check_model(&self) -> io::Result<String> {
@@ -459,32 +466,57 @@ fn read_tokens(response: &Value, previous: Option<&Tokens>) -> io::Result<Tokens
     })
 }
 
+#[cfg(test)]
 fn completed_response(body: &str) -> io::Result<Value> {
-    let normalized = body.replace("\r\n", "\n");
-    for event in normalized.split("\n\n") {
-        let data = event
-            .lines()
-            .filter_map(|line| line.strip_prefix("data:"))
-            .map(str::trim_start)
-            .collect::<Vec<_>>()
-            .join("\n");
-        if data.is_empty() || data == "[DONE]" {
+    read_response(body.as_bytes(), |_, _| Ok(()))
+}
+
+fn read_response(
+    mut reader: impl io::BufRead,
+    mut on_text: impl FnMut(usize, &str) -> io::Result<()>,
+) -> io::Result<Value> {
+    let mut line = String::new();
+    let mut data = String::new();
+
+    loop {
+        line.clear();
+        let end = reader.read_line(&mut line)? == 0;
+        let line = line.trim_end_matches(['\r', '\n']);
+        if !line.is_empty() {
+            if let Some(value) = line.strip_prefix("data:") {
+                if !data.is_empty() {
+                    data.push('\n');
+                }
+                data.push_str(value.strip_prefix(' ').unwrap_or(value));
+            }
             continue;
         }
-        let event: Value = serde_json::from_str(&data).map_err(io::Error::other)?;
-        match event["type"].as_str() {
-            Some("response.completed") if event["response"]["status"] == "completed" => {
-                return Ok(event["response"].clone());
+
+        if !data.is_empty() && data != "[DONE]" {
+            let event: Value = serde_json::from_str(&data).map_err(io::Error::other)?;
+            match event["type"].as_str() {
+                Some("response.output_text.delta") => {
+                    if let Some(text) = event["delta"].as_str() {
+                        let index = event["output_index"].as_u64().unwrap_or(0) as usize;
+                        on_text(index, text)?;
+                    }
+                }
+                Some("response.completed") if event["response"]["status"] == "completed" => {
+                    return Ok(event["response"].clone());
+                }
+                Some("response.failed" | "response.incomplete" | "error") => {
+                    return Err(response_error(&event));
+                }
+                _ => {}
             }
-            Some("response.failed" | "response.incomplete" | "error") => {
-                return Err(response_error(&event));
-            }
-            _ => {}
+        }
+        data.clear();
+        if end {
+            return Err(io::Error::other(
+                "The model stream ended without a completed response.",
+            ));
         }
     }
-    Err(io::Error::other(
-        "The model stream ended without a completed response.",
-    ))
 }
 
 fn response_error(event: &Value) -> io::Error {
@@ -657,6 +689,91 @@ mod tests {
                 .to_string()
                 .contains("max_output_tokens")
         );
+    }
+
+    #[test]
+    fn text_arrives_before_completion_and_does_not_imply_success() {
+        let body = concat!(
+            ": keepalive\r\n\r\n",
+            "data: {\"type\":\"response.output_text.delta\",\"output_index\":2,\"delta\":\"hello\"}\r\n\r\n",
+            "data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"code\":\"failed\"}}}\n\n",
+        );
+        let mut text_list = Vec::new();
+        let result = read_response(body.as_bytes(), |index, text| {
+            text_list.push((index, text.to_owned()));
+            Ok(())
+        });
+
+        assert!(result.is_err());
+        assert_eq!(text_list, vec![(2, "hello".into())]);
+    }
+
+    #[test]
+    fn publishes_text_while_the_response_connection_is_still_open() {
+        use std::io::Write;
+        use std::os::unix::net::UnixStream;
+
+        let (reader, mut writer) = UnixStream::pair().unwrap();
+        reader
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        let (received_text, wait_for_text) = std::sync::mpsc::channel();
+
+        let provider = std::thread::spawn(move || {
+            let delta = json!({
+                "type": "response.output_text.delta",
+                "output_index": 0,
+                "delta": "Visible before completion",
+            });
+            writeln!(writer, "data: {delta}\n").unwrap();
+
+            // Withhold completion until the client publishes the first fragment.
+            wait_for_text.recv_timeout(Duration::from_secs(5)).unwrap();
+
+            let completed = json!({
+                "type": "response.completed",
+                "response": {"status": "completed", "output": []},
+            });
+            writeln!(writer, "data: {completed}\n").unwrap();
+        });
+
+        let response = read_response(io::BufReader::new(reader), |index, text| {
+            assert_eq!(index, 0);
+            assert_eq!(text, "Visible before completion");
+            received_text.send(()).unwrap();
+            Ok(())
+        });
+
+        provider.join().unwrap();
+        assert_eq!(response.unwrap()["status"], "completed");
+    }
+
+    #[test]
+    fn tool_argument_fragments_are_not_published_as_response_text() {
+        let body = concat!(
+            "data: {\"type\":\"response.function_call_arguments.delta\",\"delta\":\"partial arguments\"}\n\n",
+            "data: {\"type\":\"response.completed\",\n",
+            "data: \"response\":{\"status\":\"completed\",\"output\":[]}}\n\n",
+        );
+        let response = read_response(body.as_bytes(), |_, _| {
+            panic!("Tool arguments must not appear as assistant text")
+        })
+        .unwrap();
+
+        assert_eq!(response["status"], "completed");
+    }
+
+    #[test]
+    fn text_callback_can_stop_reading_before_completion() {
+        let body = concat!(
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n",
+            "data: {\"type\":\"response.completed\",\"response\":{\"status\":\"completed\"}}\n\n",
+        );
+        let result = read_response(body.as_bytes(), |_, _| {
+            Err(io::Error::new(io::ErrorKind::Interrupted, "Stopped"))
+        });
+
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::Interrupted);
     }
 
     #[test]

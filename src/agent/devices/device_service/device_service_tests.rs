@@ -45,6 +45,26 @@ fn device_with_kind(name: &str, execution_device: bool) -> Arc<DeviceService> {
 }
 
 #[test]
+fn device_view_preserves_directional_access_after_revocation() {
+    let first = device("first");
+    let second = device("second");
+    pair(&first, &second);
+    pair(&second, &first);
+    let second_id = device_id(&second.identity.certificate);
+
+    first.revoke_access(&second_id).unwrap();
+    let view = serde_json::to_value(first.view()).unwrap();
+    let connection = &view["device_list"][0];
+    assert_eq!(view["device_list"].as_array().unwrap().len(), 1);
+    assert_eq!(connection["id"], second_id);
+    assert_eq!(connection["name"], "second");
+    assert_eq!(connection["outgoing"], true);
+    assert_eq!(connection["incoming"], false);
+    assert_eq!(connection["blocked"], true);
+    assert!(connection.get("certificate").is_none());
+}
+
+#[test]
 fn central_endpoint_requires_pairing_and_does_not_expose_local_tools() {
     let client = device("client");
     let central = device_with_kind("central", false);
@@ -105,7 +125,7 @@ fn central_endpoint_requires_pairing_and_does_not_expose_local_tools() {
     );
 }
 
-fn pair(controller: &DeviceService, target: &DeviceService) {
+fn pair(controller: &Arc<DeviceService>, target: &DeviceService) {
     let invitation = target.invite().unwrap();
     controller
         .pair(invitation["invitation"].as_str().unwrap())
@@ -203,7 +223,7 @@ fn pairing_is_directional_persistent_and_revocable() {
     target.approve(&controller_id).unwrap();
     assert_eq!(
         controller.call("target", RemoteRequest::Info).unwrap()["tool_list"],
-        json!(["shell", "computer"])
+        json!(["shell"])
     );
     assert!(target.call("controller", RemoteRequest::Info).is_err());
     *target.store.lock().unwrap() = DeviceStore::load(&target.store_path).unwrap();

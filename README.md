@@ -1,8 +1,9 @@
 # `agent`
 
-A macOS agent with desktop control, written in [rust](https://rust-lang.org/) and [swift](https://www.swift.org/).
+A Mac and iPhone agent with Mac desktop control, written in
+[rust](https://rust-lang.org/) and [swift](https://www.swift.org/).
 
-> [see how the desktop service works](src/agent/app/desktop_service/README.md)
+> [see how the desktop service works](src/desktop_service/README.md)
 
 ## setup
 
@@ -27,7 +28,9 @@ A macOS agent with desktop control, written in [rust](https://rust-lang.org/) an
 
 ## development
 
-Run an unnotarized `Agent.app`
+Build the [native Mac or iPhone client](packaging/apple/README.md).
+
+Run the Mac app
 
 ```sh
 packaging/macos/app.sh
@@ -46,20 +49,20 @@ Lock the Mac before sending desktop-control requests; the current service reject
 
 ## devices
 
-Use **Agent → Devices** to pair Macs over Tailscale and revoke access.
+Open **Devices…** from the globe menu to pair devices and revoke access.
 Pairing is directional and requires approval on the target.
 See [direct tool calls](src/agent/devices/README.md) to run commands and desktop actions without a model.
 
 ## chat
 
-Connect to a [central service](docs/plans/central-service/README.md#startup), then sign in through
-**Agent → ChatGPT** once. Every paired client shares that account and conversation history.
+Connect to a [central service](docs/central-service.md#startup), then sign in through
+**ChatGPT…** in the globe menu once. Every paired client shares that account and conversation history.
 Choose a conversation and model, then send a task. **Devices** shows each device by name.
 Enabled devices use full contrast; disabled devices are gray.
 Click a device to change its access for the conversation. Each tool call names its device.
 Chat works from any connected device, even when no devices are enabled for tools.
 
-**Agent → Conversation settings** sets the model, reasoning level, and enabled devices for new
+**Conversation settings…** in the globe menu sets the model, reasoning level, and enabled devices for new
 conversations started from this device. Automatic reasoning uses the model’s default. Existing conversations are unchanged.
 
 Typing from non-text controls focuses the composer. Conversation text can be selected and copied. Shift+Esc focuses the composer.
@@ -69,14 +72,16 @@ the send icon becomes Stop. Closing the app does not stop a task. After an inter
 
 ## source
 
-- `src/agent/app/` owns the desktop UI and service clients.
+- `src/clients/apple/` owns the native Mac and iPhone interfaces.
+- `src/agent/client/` owns shared service clients and message delivery.
 - `src/agent/service/` owns execution, ChatGPT credentials, and conversation persistence.
 - `src/agent/devices/` owns pairing, transport, and local tool execution.
 - `src/agent/protocol/` owns shared message and conversation data.
 - `src/agent/platform/` owns shared OS facilities.
 
-`main.rs` calls `run.rs` to select desktop or service startup. The app and service do not import each other's
-implementation. Shared modules do not depend on GPUI.
+The native launcher starts the interface or forwards commands to the independent Rust service binary.
+The Swift interfaces use the shared Rust static library. The client and service do not import each
+other's implementation.
 
 ## test
 

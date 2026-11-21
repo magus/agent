@@ -13,11 +13,15 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+#[cfg(test)]
+mod tests;
+
 pub(super) struct ToolStore {
     directory: PathBuf,
     runtime_dir: PathBuf,
     job_by_id: Mutex<HashMap<String, Job>>,
     cancellation_by_id: Mutex<HashMap<String, Arc<AtomicBool>>>,
+    computer_permissions: Mutex<Option<(Instant, bool)>>,
 }
 
 impl ToolStore {
@@ -43,7 +47,21 @@ impl ToolStore {
             runtime_dir,
             job_by_id: Mutex::new(job_by_id),
             cancellation_by_id: Mutex::new(HashMap::new()),
+            computer_permissions: Mutex::new(None),
         }))
+    }
+
+    pub fn computer_available(&self) -> bool {
+        let mut cached = self.computer_permissions.lock().unwrap();
+        if let Some((checked, ready)) = *cached
+            && checked.elapsed() < Duration::from_secs(2)
+        {
+            return ready;
+        }
+
+        let ready = super::computer_permissions::read(&self.runtime_dir).unwrap_or(false);
+        *cached = Some((Instant::now(), ready));
+        ready
     }
 
     pub fn submit(self: &Arc<Self>, owner: &str, id: &str, tool: Tool) -> io::Result<Job> {
@@ -150,6 +168,14 @@ impl ToolStore {
                 if cancelled.load(Ordering::Relaxed) {
                     return Ok(json!({"dispatched": false}));
                 }
+
+                // The running helper can retain an old grant result after revocation.
+                // Check through a fresh process before sending it any action.
+                let ready = super::computer_permissions::read(&self.runtime_dir).unwrap_or(false);
+                if !ready {
+                    return Err(io::Error::other("Desktop permissions are not enabled."));
+                }
+
                 let mut socket = UnixStream::connect(self.runtime_dir.join("agent.sock"))?;
                 socket.set_read_timeout(Some(Duration::from_secs(40)))?;
                 socket.set_write_timeout(Some(Duration::from_secs(10)))?;

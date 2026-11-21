@@ -30,17 +30,25 @@ pub(crate) struct DeviceService {
 }
 
 impl DeviceService {
+    #[cfg(not(target_os = "ios"))]
     pub fn load(runtime_dir: PathBuf) -> io::Result<Arc<Self>> {
-        Self::load_with(runtime_dir, Identity::load()?, 47321, true)
+        Self::load_with(runtime_dir, Identity::load()?, 47321, true, None)
     }
 
+    #[cfg(not(target_os = "ios"))]
     pub fn load_central(runtime_dir: PathBuf) -> io::Result<Arc<Self>> {
         Self::load_with(
             runtime_dir,
             Identity::load_named("com.iamnoah.agent.service")?,
             47322,
             false,
+            None,
         )
+    }
+
+    #[cfg(target_os = "ios")]
+    pub fn load_client(runtime_dir: PathBuf, name: String) -> io::Result<Arc<Self>> {
+        Self::load_with(runtime_dir, Identity::load()?, 47321, false, Some(name))
     }
 
     fn load_with(
@@ -48,6 +56,7 @@ impl DeviceService {
         identity: Identity,
         port: u16,
         execution_device: bool,
+        client_name: Option<String>,
     ) -> io::Result<Arc<Self>> {
         let store_path = runtime_dir.join("devices.json");
         let mut store = DeviceStore::load(&store_path)?;
@@ -58,7 +67,10 @@ impl DeviceService {
             store.name_migrated = true;
         }
         if store.name_override.is_none() {
-            store.name = system_name()?;
+            store.name = match client_name {
+                Some(name) => name,
+                None => system_name()?,
+            };
         }
         save_json(&store_path, &store)?;
         let service = Arc::new(Self {
@@ -76,7 +88,9 @@ impl DeviceService {
             tools: ToolStore::load(runtime_dir)?,
             service_handler: Mutex::new(None),
         });
+        #[cfg(not(target_os = "ios"))]
         let background = service.clone();
+        #[cfg(not(target_os = "ios"))]
         std::thread::spawn(move || {
             loop {
                 if let Err(error) = background.discover() {
@@ -153,7 +167,7 @@ impl DeviceService {
             "status_by_id": *self.status_by_id.lock().unwrap(),
             "connection_status": *self.connection_status.lock().unwrap(),
             "pending_list": pending_list,
-            "tool_list": ["shell", "computer"]})
+            "tool_list": self.tool_list()})
     }
 
     pub fn rename(&self, name: String) -> io::Result<Value> {
@@ -171,6 +185,7 @@ impl DeviceService {
         Ok(json!({"renamed": name}))
     }
 
+    #[cfg(not(target_os = "ios"))]
     pub fn use_system_name(&self) -> io::Result<Value> {
         let name = system_name()?;
         let mut store = self.store.lock().unwrap();
@@ -183,6 +198,7 @@ impl DeviceService {
         Ok(json!({"name": name}))
     }
 
+    #[cfg(not(target_os = "ios"))]
     pub fn configure(self: &Arc<Self>, address: SocketAddr, name: String) -> io::Result<Value> {
         if name.trim().is_empty() || name.len() > 100 {
             return Err(io::Error::other(
@@ -214,14 +230,24 @@ impl DeviceService {
         })
     }
 
+    pub(in crate::devices) fn tool_list(&self) -> Vec<String> {
+        if self.execution_device {
+            let mut tool_list = vec!["shell".into()];
+            if self.tools.computer_available() {
+                tool_list.push("computer".into());
+            }
+            tool_list
+        } else if self.port == 47322 {
+            vec!["conversations".into()]
+        } else {
+            Vec::new()
+        }
+    }
+
     pub(super) fn description(&self) -> io::Result<discovery::Description> {
         Ok(discovery::Description {
             device: self.local_device()?,
-            tool_list: if self.execution_device {
-                vec!["shell".into(), "computer".into()]
-            } else {
-                vec!["conversations".into()]
-            },
+            tool_list: self.tool_list(),
         })
     }
 }

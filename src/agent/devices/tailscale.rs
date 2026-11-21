@@ -59,6 +59,7 @@ pub(super) fn resolve_name(host: &str) -> io::Result<SocketAddr> {
 pub(super) struct Status {
     #[serde(rename = "BackendState")]
     backend_state: String,
+    #[cfg(not(target_os = "ios"))]
     #[serde(rename = "Self")]
     pub this_device: Node,
     #[serde(rename = "Peer", default)]
@@ -67,6 +68,7 @@ pub(super) struct Status {
 
 #[derive(Clone, Deserialize)]
 pub(super) struct Node {
+    #[cfg(not(target_os = "ios"))]
     #[serde(rename = "ID")]
     pub id: String,
     #[serde(rename = "HostName")]
@@ -75,6 +77,7 @@ pub(super) struct Node {
     dns_name: String,
     #[serde(rename = "TailscaleIPs", default)]
     address_list: Vec<IpAddr>,
+    #[cfg(not(target_os = "ios"))]
     #[serde(rename = "Online", default)]
     pub online: bool,
 }

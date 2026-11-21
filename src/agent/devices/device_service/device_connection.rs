@@ -195,7 +195,7 @@ impl DeviceService {
             RemoteRequest::Service { .. } => unreachable!("service requests handled above"),
             RemoteRequest::Info => Ok(
                 json!({"id": device_id(&self.identity.certificate), "name": store.name,
-                "tool_list": if self.execution_device { vec!["shell", "computer"] } else { vec!["conversations"] }}),
+                "tool_list": self.tool_list()}),
             ),
             RemoteRequest::Submit { .. }
             | RemoteRequest::Status { .. }

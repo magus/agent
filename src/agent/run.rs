@@ -1,7 +1,7 @@
-use crate::app::{App, Args};
+use crate::client::Args;
 use std::io;
 
-pub(crate) fn run() -> io::Result<()> {
+pub fn run() -> io::Result<()> {
     let argument_list: Vec<String> = std::env::args().skip(1).collect();
     if let [command, path] = argument_list.as_slice()
         && command == "--device"
@@ -22,16 +22,14 @@ pub(crate) fn run() -> io::Result<()> {
     }
     let args = Args::parse(&argument_list)?;
 
-    match args {
-        Args::Help => {
-            println!(
-                "Usage: Agent [--setup | --chatgpt | --devices | --permissions | --device REQUEST.json | --service | --service-install | --service-device REQUEST.json]"
-            );
-            return Ok(());
-        }
-        Args::Permissions => return crate::app::desktop_service::diagnose(),
-        _ => {}
+    if args == Args::Help {
+        println!(
+            "Usage: Agent [--setup | --chatgpt | --devices | --device REQUEST.json | --service | --service-install | --service-device REQUEST.json]"
+        );
+        return Ok(());
     }
 
-    App::run(args)
+    Err(io::Error::other(
+        "Open Agent.app to use the native interface.",
+    ))
 }

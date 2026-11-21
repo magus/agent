@@ -1,0 +1,16 @@
+{
+  "name": "agent-markdown",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild renderer.js --bundle --format=iife --target=safari18 --outfile=../../.build/markdown/renderer.js",
+    "test": "node --test renderer.test.js"
+  },
+  "dependencies": {
+    "@pierre/highlights": "0.5.2",
+    "@pierre/words": "0.2.2"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

@@ -1,5 +1,6 @@
 use super::conversation::Conversation;
 use super::model_request::model_request;
+use super::response_preview::ResponsePreview;
 use crate::devices::ToolConnection;
 use crate::protocol::Target;
 use crate::protocol::{ConversationView, Entry, ToolRequest};
@@ -27,6 +28,7 @@ pub(crate) struct AgentLoop {
     pub(super) local: Target,
     pub(super) revision: AtomicU64,
     pub(super) run_id: AtomicU64,
+    response_preview: Mutex<ResponsePreview>,
 }
 
 impl AgentLoop {
@@ -61,6 +63,7 @@ impl AgentLoop {
             submission: Mutex::new(()),
             revision: AtomicU64::new(0),
             run_id: AtomicU64::new(0),
+            response_preview: Mutex::new(ResponsePreview::default()),
         });
         Ok(agent)
     }
@@ -81,12 +84,17 @@ impl AgentLoop {
 
     pub fn view(&self) -> ConversationView {
         let conversation = self.conversation.lock().unwrap();
+        let mut entry_list = conversation.entry_list.clone();
+        self.response_preview
+            .lock()
+            .unwrap()
+            .append_to(&mut entry_list);
         ConversationView {
             id: conversation.id.clone(),
             model: conversation.model.clone(),
             reasoning_effort: conversation.reasoning_effort.clone(),
             status: conversation.status.clone(),
-            entry_list: conversation.entry_list.clone(),
+            entry_list,
         }
     }
 
@@ -251,6 +259,7 @@ impl AgentLoop {
     }
 
     pub(super) fn run(&self, settings: crate::protocol::ModelSettings) -> io::Result<()> {
+        let _preview_cleanup = ResponsePreviewCleanup(self);
         loop {
             self.check_stopped()?;
             let mut target_list = Vec::new();
@@ -270,14 +279,26 @@ impl AgentLoop {
                 )
             };
             let client = self.client.clone();
-            let (sender, receiver) = mpsc::sync_channel(1);
+            let (sender, receiver) = mpsc::sync_channel(32);
             std::thread::spawn(move || {
-                let _ = sender.send(client.respond(&request));
+                let result = client.respond_with_text(&request, |index, text| {
+                    sender
+                        .send(ModelEvent::Text {
+                            index,
+                            text: text.into(),
+                        })
+                        .map_err(|_| io::Error::new(io::ErrorKind::Interrupted, "Stopped"))
+                });
+                let _ = sender.send(ModelEvent::Completed(result));
             });
             let response = loop {
                 self.check_stopped()?;
                 match receiver.recv_timeout(Duration::from_millis(100)) {
-                    Ok(result) => break result?,
+                    Ok(ModelEvent::Completed(result)) => break result?,
+                    Ok(ModelEvent::Text { index, text }) => {
+                        self.response_preview.lock().unwrap().append(index, &text);
+                        self.revision.fetch_add(1, Ordering::Relaxed);
+                    }
                     Err(mpsc::RecvTimeoutError::Timeout) => continue,
                     Err(_) => {
                         return Err(io::Error::other("Model request ended without a response."));
@@ -304,6 +325,7 @@ impl AgentLoop {
                         }
                     }
                 }
+                self.response_preview.lock().unwrap().clear();
                 Ok(())
             })?;
             let call_list: Vec<&Value> = output_list
@@ -467,6 +489,20 @@ impl AgentLoop {
         }) {
             eprintln!("Could not save conversation. {error}");
         }
+    }
+}
+
+enum ModelEvent {
+    Text { index: usize, text: String },
+    Completed(io::Result<Value>),
+}
+
+struct ResponsePreviewCleanup<'a>(&'a AgentLoop);
+
+impl Drop for ResponsePreviewCleanup<'_> {
+    fn drop(&mut self) {
+        self.0.response_preview.lock().unwrap().clear();
+        self.0.revision.fetch_add(1, Ordering::Relaxed);
     }
 }
 

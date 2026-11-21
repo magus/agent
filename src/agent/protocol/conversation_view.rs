@@ -11,14 +11,3 @@ pub(crate) struct ConversationView {
     pub entry_list: Vec<Entry>,
     pub status: String,
 }
-
-impl ConversationView {
-    pub fn pending(&self) -> bool {
-        self.entry_list.iter().any(|entry| {
-            entry
-                .request
-                .as_ref()
-                .is_some_and(|request| !request.finished)
-        })
-    }
-}

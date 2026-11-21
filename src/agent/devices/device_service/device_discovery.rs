@@ -1,13 +1,17 @@
 use super::device_service::DeviceService;
 use super::remote_request::{RemoteRequest, read_result};
+#[cfg(not(target_os = "ios"))]
 use crate::devices::device_store::save_json;
 use crate::devices::identity::device_id;
+#[cfg(not(target_os = "ios"))]
 use crate::devices::system_name::system_name;
 use crate::devices::{discovery, tailscale, transport};
 use serde_json::Value;
+#[cfg(not(target_os = "ios"))]
 use std::collections::HashMap;
 use std::io;
 use std::net::{SocketAddr, ToSocketAddrs};
+#[cfg(not(target_os = "ios"))]
 use std::sync::Arc;
 
 impl DeviceService {
@@ -79,6 +83,7 @@ impl DeviceService {
         })
     }
 
+    #[cfg(not(target_os = "ios"))]
     pub fn discover(self: &Arc<Self>) -> io::Result<Value> {
         let system_name = system_name()?;
         {
