@@ -9,6 +9,9 @@
 
 - Central account switching and an in-app usage display remain deferred.
 
+- what happens when we ask it to say view a tweet or access something like the latest stock price?
+  can it use web/sonic? we need to make sure we are roughly matching capabilities available in codex/claude
+
 - sort sidebar conversations by time of last user message sent, recent first
 
 - allow computer tool while unlocked, oddly requires locked currently
