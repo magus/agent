@@ -61,3 +61,24 @@ Mode before installation. Simulator checks do not establish physical-device beha
 
 Remaining native UI checks are listed in [TODO.md](../../TODO.md).
 `packaging/macos/app.sh` builds the same native app and places it in `dist/Agent.app`.
+
+## App icon
+
+`assets/Agent.icon` is the shared Icon Composer document. The build uses Xcode's `actool` to generate
+platform icons and merge their metadata into the bundle. Apple applies the mask and generates the
+legacy Mac `.icns` fallback.
+
+`assets/Agent.icon/Assets/agent-icon-square.svg` is the app-icon source of truth. Edit that file,
+not the adjacent PNG. Every build regenerates the 1024-pixel PNG before compiling the icon.
+The generated PNG is checked in so the document also opens directly in Icon Composer.
+
+To regenerate it without building the app
+
+```sh
+python3 packaging/apple/render_icon.py
+```
+
+The export uses resvg 0.45.1, installed through Cargo into `.build/tools/` on first use. Later
+exports reuse that pinned tool. Python runs the export; no Node.js wrapper is needed.
+We use a raster layer because importing the SVG directly into Icon Composer loses filter softness.
+`assets/agent-icon.svg` is the original standalone rounded artwork, not the app build input.

@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 
+import compile_icon
 import sign_iphone
 
 
@@ -72,6 +73,7 @@ def build(args, *, repo_dir):
     with tempfile.TemporaryDirectory(prefix="build.", dir=output_dir) as stage:
         app_dir = pathlib.Path(stage) / "Agent.app"
         executable_dir = prepare_bundle(app_dir, platform=platform)
+        compile_icon.compile_icon(app_dir, platform=platform)
         build_renderer(app_dir, platform=platform)
         compile_app(
             executable_dir, platform=platform, proof=proof, sdk_path=sdk_path,
