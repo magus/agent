@@ -12,6 +12,8 @@ pub(crate) struct Entry {
     pub text: String,
     pub image: Option<PathBuf>,
     pub request: Option<ToolRequest>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub image_result_list: Vec<serde_json::Value>,
 }
 
 impl Entry {
@@ -23,6 +25,7 @@ impl Entry {
             text: text.into(),
             image: None,
             request: None,
+            image_result_list: Vec::new(),
         }
     }
 }

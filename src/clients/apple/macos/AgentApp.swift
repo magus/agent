@@ -13,6 +13,14 @@ struct AgentApp: App {
         .defaultSize(width: 960, height: 720)
         .commands { AgentCommands() }
 
+        WindowGroup("Conversation JSON", id: "conversation-json", for: ConversationJSONTarget.self) { $target in
+            if let target {
+                ConversationJSONView(service: target.service, id: target.id)
+            }
+        }
+        .defaultSize(width: 1280, height: 900)
+        .commandsRemoved()
+
         Window("Desktop permissions", id: "desktop-permissions") {
             DesktopPermissionsView()
         }

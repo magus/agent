@@ -260,6 +260,8 @@ impl AgentLoop {
 
     pub(super) fn run(&self, settings: crate::protocol::ModelSettings) -> io::Result<()> {
         let _preview_cleanup = ResponsePreviewCleanup(self);
+        let mut next_search = None;
+        let mut image_reply = None;
         loop {
             self.check_stopped()?;
             let mut target_list = Vec::new();
@@ -269,7 +271,7 @@ impl AgentLoop {
                     "tools":info.as_ref().ok().map(|info| &info["tool_list"]),
                     "error":info.err().map(|error| error.to_string())}));
             }
-            let request = {
+            let mut request = {
                 let conversation = self.conversation.lock().unwrap();
                 model_request(
                     &settings,
@@ -278,46 +280,74 @@ impl AgentLoop {
                     &self.local,
                 )
             };
-            let client = self.client.clone();
-            let (sender, receiver) = mpsc::sync_channel(32);
-            std::thread::spawn(move || {
-                let result = client.respond_with_text(&request, |index, text| {
-                    sender
-                        .send(ModelEvent::Text {
-                            index,
-                            text: text.into(),
-                        })
-                        .map_err(|_| io::Error::new(io::ErrorKind::Interrupted, "Stopped"))
-                });
-                let _ = sender.send(ModelEvent::Completed(result));
-            });
-            let response = loop {
-                self.check_stopped()?;
-                match receiver.recv_timeout(Duration::from_millis(100)) {
-                    Ok(ModelEvent::Completed(result)) => break result?,
-                    Ok(ModelEvent::Text { index, text }) => {
-                        self.response_preview.lock().unwrap().append(index, &text);
-                        self.revision.fetch_add(1, Ordering::Relaxed);
-                    }
-                    Err(mpsc::RecvTimeoutError::Timeout) => continue,
-                    Err(_) => {
-                        return Err(io::Error::other("Model request ended without a response."));
-                    }
-                }
+            let operation = if let Some(tool) = next_search.take() {
+                super::search::enable(&mut request, tool);
+                "search"
+            } else {
+                "chat"
             };
+            let image_search = request["include"]
+                .as_array()
+                .is_some_and(|list| list.iter().any(|field| field == "web_search_call.results"));
+            if let Some(results) = image_reply.take() {
+                request["input"].as_array_mut().unwrap().push(json!({
+                    "role": "developer",
+                    "content": "Answer the user's request using the image results below as source data. Choose any pictures to display yourself. For an inline picture, copy its exact image_url into Markdown image syntax."
+                }));
+                request["input"].as_array_mut().unwrap().push(json!({
+                    "role": "user", "content": format!("Image search results (JSON): {results}")
+                }));
+                request["tool_choice"] = json!("none");
+            }
+            let mut response = self.request_response(request, operation, !image_search)?;
             self.check_stopped()?;
             let output_list = response["output"]
-                .as_array()
+                .as_array_mut()
                 .ok_or_else(|| io::Error::other("Model returned no output."))?;
+            for item in output_list.iter_mut() {
+                super::search::strip_sources(item);
+            }
+            if image_search
+                && !output_list
+                    .iter()
+                    .any(|item| item["type"] == "function_call")
+            {
+                let images: Vec<_> = output_list
+                    .iter()
+                    .filter(|item| item["type"] == "web_search_call")
+                    .filter_map(|item| item["results"].as_array())
+                    .flatten()
+                    .filter(|item| item["type"] == "image_result" && item["image_url"].is_string())
+                    .map(|item| {
+                        json!({"image_url": item["image_url"], "caption": item["caption"],
+                                       "source_website_url": item["source_website_url"]})
+                    })
+                    .collect();
+                if !images.is_empty() {
+                    image_reply = Some(json!(images));
+                    output_list.retain(|item| item["type"] != "message");
+                }
+            }
             self.change(|conversation| {
-                conversation.input_list.extend(output_list.clone());
-                for output in output_list {
-                    if output["type"] == "message" {
+                conversation.input_list.extend(output_list.iter().cloned());
+                for output in output_list.iter() {
+                    if let Some(query) = super::search::query_for_call(output) {
+                        conversation.entry_list.push(Entry::text("Search", query));
+                    } else if output["type"] == "web_search_call" {
+                        if let Some(entry) = conversation
+                            .entry_list
+                            .iter_mut()
+                            .rev()
+                            .find(|entry| entry.role == "Search")
+                        {
+                            super::search::append_images(entry, output);
+                        }
+                    } else if output["type"] == "message" {
                         let text = output["content"]
                             .as_array()
                             .into_iter()
                             .flatten()
-                            .filter_map(|part| part["text"].as_str())
+                            .filter_map(super::cited_text::cited_text)
                             .collect::<Vec<_>>()
                             .join("\n");
                         if !text.is_empty() {
@@ -332,6 +362,9 @@ impl AgentLoop {
                 .iter()
                 .filter(|output| output["type"] == "function_call")
                 .collect();
+            if image_reply.is_some() {
+                continue;
+            }
             if call_list.is_empty() {
                 return self.change(|conversation| {
                     conversation.status = "Ready".into();
@@ -339,9 +372,89 @@ impl AgentLoop {
                 });
             }
             for call in call_list {
-                self.execute_call(call)?;
+                if call["name"] == "search" {
+                    next_search = self.prepare_search(call)?;
+                } else {
+                    self.execute_call(call)?;
+                }
             }
         }
+    }
+
+    fn request_response(
+        &self,
+        request: Value,
+        operation: &'static str,
+        preview: bool,
+    ) -> io::Result<Value> {
+        self.check_stopped()?;
+        let request_id = uuid::Uuid::new_v4().to_string();
+        let mut journal = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(self.directory.join("openai-events.jsonl"))?;
+        let client = self.client.clone();
+        let (sender, receiver) = mpsc::sync_channel(32);
+        std::thread::spawn(move || {
+            let result = client.respond_with_text(
+                &request,
+                |index, text| {
+                    if !preview {
+                        return Ok(());
+                    }
+                    sender
+                        .send(ModelEvent::Text {
+                            index,
+                            text: text.into(),
+                        })
+                        .map_err(|_| io::Error::new(io::ErrorKind::Interrupted, "Stopped"))
+                },
+                |event| {
+                    use std::io::Write;
+                    let mut record = serde_json::to_vec(
+                        &json!({"request_id":request_id,"operation":operation,"event":event}),
+                    )?;
+                    record.push(b'\n');
+                    journal.write_all(&record)
+                },
+            );
+            let _ = sender.send(ModelEvent::Completed(result));
+        });
+        loop {
+            self.check_stopped()?;
+            match receiver.recv_timeout(Duration::from_millis(100)) {
+                Ok(ModelEvent::Completed(result)) => return result,
+                Ok(ModelEvent::Text { index, text }) => {
+                    self.response_preview.lock().unwrap().append(index, &text);
+                    self.revision.fetch_add(1, Ordering::Relaxed);
+                }
+                Err(mpsc::RecvTimeoutError::Timeout) => continue,
+                Err(_) => {
+                    return Err(io::Error::other("Model request ended without a response."));
+                }
+            }
+        }
+    }
+
+    fn prepare_search(&self, call: &Value) -> io::Result<Option<Value>> {
+        let call_id = call["call_id"]
+            .as_str()
+            .ok_or_else(|| io::Error::other("Missing search call ID"))?;
+        let arguments = call["arguments"].as_str().unwrap_or("");
+        let (tool, output) = match super::search::hosted_tool(arguments) {
+            Ok(tool) => (
+                Some(tool),
+                "Web search is configured for this conversation.".to_owned(),
+            ),
+            Err(error) => (None, error.to_string()),
+        };
+        self.change(|conversation| {
+            conversation
+                .input_list
+                .push(json!({"type":"function_call_output","call_id":call_id,"output":output}));
+            Ok(())
+        })?;
+        Ok(tool)
     }
 
     fn execute_call(&self, call: &Value) -> io::Result<()> {
@@ -382,6 +495,7 @@ impl AgentLoop {
                 text: serde_json::to_string_pretty(&tool)?,
                 image: None,
                 request: Some(request),
+                image_result_list: Vec::new(),
             });
             Ok(())
         })?;

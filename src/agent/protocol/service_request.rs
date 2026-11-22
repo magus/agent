@@ -8,6 +8,16 @@ pub(crate) enum ServiceRequest {
     Login {
         request: Value,
     },
+    SearchSources {
+        id: String,
+        entry_index: usize,
+    },
+    ConversationJson {
+        id: String,
+        events: bool,
+        offset: u64,
+        snapshot: Option<(u64, u64)>,
+    },
     CheckModel,
     SignOut,
     Models,

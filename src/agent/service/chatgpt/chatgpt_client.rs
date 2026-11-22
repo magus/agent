@@ -233,13 +233,14 @@ impl ChatGptClient {
     }
 
     pub(crate) fn respond(&self, request: &Value) -> io::Result<Value> {
-        self.respond_with_text(request, |_, _| Ok(()))
+        self.respond_with_text(request, |_, _| Ok(()), |_| Ok(()))
     }
 
     pub(crate) fn respond_with_text(
         &self,
         request: &Value,
         on_text: impl FnMut(usize, &str) -> io::Result<()>,
+        on_event: impl FnMut(&Value) -> io::Result<()>,
     ) -> io::Result<Value> {
         let authorization = self.authorization()?;
         let mut response = self
@@ -254,7 +255,7 @@ impl ChatGptClient {
             .with_config()
             .limit(16 * 1024 * 1024)
             .reader();
-        read_response(std::io::BufReader::new(body), on_text)
+        read_response_events(std::io::BufReader::new(body), on_text, on_event)
     }
 
     pub(crate) fn check_model(&self) -> io::Result<String> {
@@ -471,12 +472,22 @@ fn completed_response(body: &str) -> io::Result<Value> {
     read_response(body.as_bytes(), |_, _| Ok(()))
 }
 
+#[cfg(test)]
 fn read_response(
+    reader: impl io::BufRead,
+    on_text: impl FnMut(usize, &str) -> io::Result<()>,
+) -> io::Result<Value> {
+    read_response_events(reader, on_text, |_| Ok(()))
+}
+
+fn read_response_events(
     mut reader: impl io::BufRead,
     mut on_text: impl FnMut(usize, &str) -> io::Result<()>,
+    mut on_event: impl FnMut(&Value) -> io::Result<()>,
 ) -> io::Result<Value> {
     let mut line = String::new();
     let mut data = String::new();
+    let mut item_by_index = std::collections::BTreeMap::new();
 
     loop {
         line.clear();
@@ -493,7 +504,8 @@ fn read_response(
         }
 
         if !data.is_empty() && data != "[DONE]" {
-            let event: Value = serde_json::from_str(&data).map_err(io::Error::other)?;
+            let mut event: Value = serde_json::from_str(&data).map_err(io::Error::other)?;
+            on_event(&event)?;
             match event["type"].as_str() {
                 Some("response.output_text.delta") => {
                     if let Some(text) = event["delta"].as_str() {
@@ -501,8 +513,25 @@ fn read_response(
                         on_text(index, text)?;
                     }
                 }
+                Some("response.output_item.done") => {
+                    if let Some(index) = event["output_index"].as_u64() {
+                        item_by_index.insert(index as usize, event["item"].take());
+                    }
+                }
                 Some("response.completed") if event["response"]["status"] == "completed" => {
-                    return Ok(event["response"].clone());
+                    let mut response = event["response"].take();
+                    if let Some(output_list) = response["output"].as_array_mut() {
+                        for (index, item) in item_by_index {
+                            let already_present = output_list.iter().any(|saved| {
+                                item["id"].is_string() && saved["id"] == item["id"]
+                                    || saved == &item
+                            });
+                            if !already_present {
+                                output_list.insert(index.min(output_list.len()), item);
+                            }
+                        }
+                    }
+                    return Ok(response);
                 }
                 Some("response.failed" | "response.incomplete" | "error") => {
                     return Err(response_error(&event));
@@ -689,6 +718,23 @@ mod tests {
                 .to_string()
                 .contains("max_output_tokens")
         );
+    }
+
+    #[test]
+    fn streamed_search_is_preserved_once_when_completion_omits_or_repeats_it() {
+        let search = json!({"type":"web_search_call","id":"ws_1","status":"completed"});
+        let done = json!({"type":"response.output_item.done","output_index":0,"item":search});
+        for output in [json!([]), json!([search])] {
+            let completed = json!({"type":"response.completed","response":{"status":"completed","output":output}});
+            let message = json!({"type":"message","id":"msg","content":[{"type":"output_text","text":"Quote"}]});
+            let message_done =
+                json!({"type":"response.output_item.done","output_index":1,"item":message});
+            let stream = format!("data: {done}\n\ndata: {message_done}\n\ndata: {completed}\n\n");
+            assert_eq!(
+                completed_response(&stream).unwrap()["output"],
+                json!([search, message])
+            );
+        }
     }
 
     #[test]

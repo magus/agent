@@ -19,6 +19,7 @@ pub(super) fn model_request(
         "input": input_list,
         "tools": tool_schema(),
     });
+    super::search::trim_legacy_results(request["input"].as_array_mut().unwrap());
     if let Some(effort) = &settings.reasoning_effort {
         request["reasoning"] = json!({"effort": effort});
     }

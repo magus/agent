@@ -94,6 +94,20 @@ fn dispatch(request: Request) -> io::Result<Value> {
             "default_target_list": chat.default_target_list(),
             "model_settings": chat.model_settings(),
         })),
+        Request::SearchSources {
+            service,
+            id,
+            entry_index,
+        } => chat.request_at(
+            &service,
+            json!({"action":"search_sources","id":id,"entry_index":entry_index}),
+        ),
+        Request::ConversationJson {
+            service,
+            id,
+            events,
+            decode_nested,
+        } => super::conversation_json::load(chat, &service, &id, events, decode_nested),
         Request::Models => {
             serde_json::to_value(chat.model_option_list()?).map_err(io::Error::other)
         }
@@ -221,6 +235,18 @@ enum Request {
         name: String,
     },
     Snapshot,
+    SearchSources {
+        service: String,
+        id: String,
+        entry_index: usize,
+    },
+    ConversationJson {
+        service: String,
+        id: String,
+        events: bool,
+        #[serde(default)]
+        decode_nested: bool,
+    },
     Models,
     Connect {
         host: String,

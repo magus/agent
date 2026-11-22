@@ -1,0 +1,104 @@
+{
+  "type": "function",
+  "name": "search",
+  "description": "Configure the next web search in this conversation. The hosted tool uses the conversation history and returns citations. Only query is required.",
+  "strict": false,
+  "parameters": {
+    "type": "object",
+    "description": "Options apply to this search only.",
+    "properties": {
+      "query": {
+        "type": "string",
+        "minLength": 1,
+        "description": "The question to research. Include the subject and any relevant dates."
+      },
+      "filters": {
+        "type": "object",
+        "description": "Restrict the sources for this search.",
+        "properties": {
+          "allowed_domains": {
+            "type": "array",
+            "description": "Limit results to these domains and their subdomains. Use hostnames without a scheme.",
+            "maxItems": 100,
+            "items": {
+              "type": "string"
+            }
+          },
+          "blocked_domains": {
+            "type": "array",
+            "description": "Exclude these domains and their subdomains. Use hostnames without a scheme.",
+            "maxItems": 100,
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "additionalProperties": false
+      },
+      "search_context_size": {
+        "type": "string",
+        "enum": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "description": "Amount of search context. Use low for a quick lookup or high for detailed research."
+      },
+      "user_location": {
+        "type": "object",
+        "description": "Approximate location for local results.",
+        "properties": {
+          "country": {
+            "type": "string",
+            "description": "Two-letter ISO country code."
+          },
+          "region": {
+            "type": "string",
+            "description": "State or region."
+          },
+          "city": {
+            "type": "string",
+            "description": "City name."
+          },
+          "timezone": {
+            "type": "string",
+            "description": "IANA time zone, such as America/Los_Angeles."
+          }
+        },
+        "additionalProperties": false
+      },
+      "search_content_types": {
+        "type": "array",
+        "minItems": 1,
+        "items": {
+          "type": "string",
+          "enum": [
+            "text",
+            "image"
+          ]
+        },
+        "description": "Request text, images, or both. Omit for ordinary text searches."
+      },
+      "image_settings": {
+        "type": "object",
+        "description": "Options for image searches. Include image in search_content_types.",
+        "properties": {
+          "max_results": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Maximum number of image results to request."
+          },
+          "caption": {
+            "type": "boolean",
+            "description": "Request image captions when available."
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "additionalProperties": false,
+    "required": [
+      "query"
+    ]
+  }
+}

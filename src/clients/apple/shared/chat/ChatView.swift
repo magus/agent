@@ -5,6 +5,7 @@ struct ChatView: View {
     @State private var expanded_id_set: Set<String> = []
     @FocusState private var composer_focused: Bool
     @State private var showing_connection = false
+    @State private var showing_json = false
     @State private var showing_settings = false
     @State private var showing_devices = false
     @State private var showing_chatgpt = false
@@ -54,7 +55,7 @@ struct ChatView: View {
                 ConversationScrollView(sent_message_id: model.pending_entry?.message_id) {
                     VStack(alignment: .leading, spacing: 20) {
                         ForEach(Array(model.conversation.entry_list.enumerated()), id: \.offset) { index, entry in
-                            message(entry, active: model.running && index == model.conversation.entry_list.count - 1)
+                            message(entry, index: index, active: model.running && index == model.conversation.entry_list.count - 1)
                         }
                         if let pending = model.pending_entry {
                             message(pending)
@@ -118,6 +119,20 @@ struct ChatView: View {
                     }
                     .disabled(!model.initialized)
                 }
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        Button("View conversation JSON…") {
+                            #if os(macOS)
+                            open_window(id: "conversation-json", value: ConversationJSONTarget(service: model.service_host, id: model.conversation.id))
+                            #else
+                            showing_json = true
+                            #endif
+                        }
+                    } label: {
+                        Label("Conversation actions", systemImage: "ellipsis.circle")
+                    }
+                    .disabled(model.service_host.isEmpty || model.conversation.id.isEmpty)
+                }
             }
         }
         .task {
@@ -132,6 +147,11 @@ struct ChatView: View {
             }
             #endif
         }
+        #if !os(macOS)
+        .sheet(isPresented: $showing_json) {
+            ConversationJSONView(service: model.service_host, id: model.conversation.id)
+        }
+        #endif
         .sheet(isPresented: $showing_connection) {
             ServiceConnectionView(model: model)
         }
@@ -145,11 +165,14 @@ struct ChatView: View {
         }
     }
 
-    private func message(_ entry: Entry, active: Bool = false) -> some View {
+    private func message(_ entry: Entry, index: Int? = nil, active: Bool = false) -> some View {
         HStack(alignment: .top) {
             if entry.role == "You" { Spacer(minLength: 40) }
             Group {
-                if let request = entry.request {
+                if entry.role == "Search", let index {
+                    SearchSourcesView(query: entry.text, service: model.service_host, conversation_id: model.conversation.id,
+                                      entry_index: index, running: model.running, image_list: entry.image_result_list ?? [])
+                } else if let request = entry.request {
                     ToolResultView(entry: entry, request: request,
                         device_name: model.device_list.first(where: { $0.id == request.host })?.name ?? request.host,
                         expanded: Binding(
@@ -164,7 +187,12 @@ struct ChatView: View {
                         if entry.role == "You" {
                             Text(entry.text).textSelection(.enabled)
                         } else {
-                            MarkdownContent(source: entry.text, active: active).equatable()
+                            let urls = entry.role == "Agent" && entry.text.contains("![")
+                                ? model.conversation.entry_list.prefix(index ?? 0).flatMap { row in
+                                    (row.image_result_list ?? []).flatMap { [$0.image_url, $0.thumbnail_url].compactMap { $0 } }
+                                }
+                                : []
+                            MarkdownContent(source: entry.text, active: active, image_urls: urls).equatable()
                         }
                     }
                         .padding(entry.role == "You" ? 12 : 0)

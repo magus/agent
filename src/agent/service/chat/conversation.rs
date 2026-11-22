@@ -34,8 +34,91 @@ impl Conversation {
         if conversation.status == "Running" {
             conversation.status = "Interrupted. Retrieve pending results before continuing.".into();
         }
+        conversation.restore_search_entries();
+        conversation.restore_search_images();
         conversation.finish_unsubmitted_calls();
         Ok(conversation)
+    }
+
+    fn restore_search_entries(&mut self) {
+        let saved_queries = self
+            .input_list
+            .iter()
+            .filter_map(super::search::query_for_call);
+        let visible_queries = self
+            .entry_list
+            .iter()
+            .filter(|entry| entry.role == "Search")
+            .map(|entry| &entry.text);
+        if saved_queries.eq(visible_queries.cloned()) {
+            return;
+        }
+
+        self.entry_list.retain(|entry| entry.role != "Search");
+        let mut cursor = 0;
+        for item in &self.input_list {
+            if let Some(query) = super::search::query_for_call(item) {
+                self.entry_list.insert(cursor, Entry::text("Search", query));
+                cursor += 1;
+                continue;
+            }
+            let role = if item["role"] == "user" && item["content"].is_string() {
+                "You"
+            } else if item["type"] == "message"
+                && item["content"].as_array().is_some_and(|parts| {
+                    parts
+                        .iter()
+                        .any(|part| part["text"].as_str().is_some_and(|text| !text.is_empty()))
+                })
+            {
+                "Agent"
+            } else if item["type"] == "function_call" {
+                "Tool"
+            } else {
+                continue;
+            };
+            let position = self.entry_list[cursor..].iter().position(|entry| {
+                if role == "Tool" {
+                    return entry
+                        .request
+                        .as_ref()
+                        .is_some_and(|request| item["call_id"] == request.call_id);
+                }
+                entry.role == role
+            });
+            if let Some(position) = position {
+                cursor += position + 1;
+            }
+        }
+    }
+
+    fn restore_search_images(&mut self) {
+        let mut rows = self
+            .entry_list
+            .iter_mut()
+            .filter(|entry| entry.role == "Search");
+        let mut current = None;
+        for item in &self.input_list {
+            if super::search::query_for_call(item).is_some() {
+                current = rows.next();
+            } else if item["role"] == "user" {
+                current = None;
+            } else if item["type"] == "web_search_call"
+                && let Some(entry) = current.as_deref_mut()
+            {
+                super::search::append_images(entry, item);
+            } else if item["type"] == "function_call_output"
+                && let Some(entry) = current.as_deref_mut()
+                && let Some(result) = item["output"]
+                    .as_str()
+                    .and_then(|text| serde_json::from_str::<Value>(text).ok())
+                && let Some(searches) = result["searches"].as_array()
+            {
+                for search in searches {
+                    super::search::append_images(entry, search);
+                }
+            }
+        }
     }
 
     pub fn save(&self, directory: &Path) -> io::Result<()> {
@@ -113,6 +196,30 @@ mod tests {
     use super::*;
     use crate::protocol::ToolRequest;
     use serde_json::json;
+
+    #[test]
+    fn historical_search_is_visible_once_between_question_and_answer() {
+        let mut conversation = Conversation {
+            input_list: vec![
+                json!({"role":"user","content":"Find a quote"}),
+                json!({"type":"function_call","name":"search","arguments":r#"{"query":"AAPL quote"}"#}),
+                json!({"type":"message","content":[{"text":"Quote found"}]}),
+            ],
+            entry_list: vec![
+                Entry::text("You", "Find a quote"),
+                Entry::text("Agent", "Quote found"),
+            ],
+            ..Conversation::default()
+        };
+        conversation.restore_search_entries();
+        conversation.restore_search_entries();
+        let rows: Vec<_> = conversation
+            .entry_list
+            .iter()
+            .map(|entry| entry.text.as_str())
+            .collect();
+        assert_eq!(rows, ["Find a quote", "AAPL quote", "Quote found"]);
+    }
 
     #[test]
     fn legacy_preferred_device_is_not_retained() {

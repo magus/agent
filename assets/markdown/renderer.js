@@ -1,3 +1,4 @@
+import { imageUrlOptions } from './imageUrlOptions.js';
 import { createDomRenderer } from '@pierre/words/html';
 import { createHighlightsPlugin } from '@pierre/words/highlights';
 import { pierreDark, pierreLight } from '@pierre/highlights/themes';
@@ -16,21 +17,25 @@ renderer.connect();
 // WebKit otherwise consumes vertical drags over code blocks inside the native scroll view.
 document.addEventListener('touchstart', () => {}, { passive: true });
 let current_dark;
+let current_images;
 
-/** @typedef {{source: string, active: boolean, font_size: number, dark: boolean}} MessageUpdate */
+/** @typedef {{source: string, active: boolean, font_size: number, dark: boolean, image_urls?: string[]}} MessageUpdate */
 
 /** @param {MessageUpdate} update */
 window.render_message = (update) => {
   document.documentElement.style.fontSize = `${update.font_size}px`;
   document.documentElement.style.colorScheme = update.dark ? 'dark' : 'light';
-  if (current_dark !== update.dark) {
+  const images = JSON.stringify(update.image_urls ?? []);
+  if (current_dark !== update.dark || current_images !== images) {
+    if (current_images !== images) renderer.update('', false, false, false);
     renderer.configure({
       controls: false,
       lineNumbers: false,
-      disallowedElements: ['img'],
+      ...imageUrlOptions(update.image_urls ?? []),
       plugins: { code: update.dark ? code_by_mode.dark : code_by_mode.light },
     });
     current_dark = update.dark;
+    current_images = images;
   }
   renderer.update(update.source, update.active, update.active, false);
 };

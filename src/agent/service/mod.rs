@@ -2,8 +2,10 @@ mod central_login;
 mod central_service;
 mod chat;
 mod chatgpt;
+mod conversation_json;
 mod install;
 mod run;
+mod search_sources;
 mod service_store;
 
 pub(crate) use install::install;

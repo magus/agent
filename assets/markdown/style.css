@@ -20,3 +20,9 @@ th, td { padding: 0.4em 0.7em; border: 1px solid GrayText; text-align: start; }
 hr { border: 0; border-top: 1px solid GrayText; }
 
 [data-markdown="code-header"] { display: none; }
+
+.document-view body { overflow: visible; }
+.document-view pre { overflow: visible; width: max-content; min-width: 100%; box-sizing: border-box; font-size: 1rem; }
+.document-view pre code { font-size: inherit; }
+
+#message img { max-width: 100%; height: auto; }

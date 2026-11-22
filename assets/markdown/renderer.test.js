@@ -1,3 +1,4 @@
+import { imageUrlOptions } from './imageUrlOptions.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -27,7 +28,7 @@ test('renders the shared formatting fixture with semantic structure', () => {
 });
 
 test('untrusted markdown cannot insert executable HTML or load remote images', () => {
-  const renderer = createHtmlRenderer({ disallowedElements: ['img'], controls: false });
+  const renderer = createHtmlRenderer({ ...imageUrlOptions([]), controls: false });
   const source = '<script>alert(1)</script>\n\n[bad](javascript:alert(1))\n\n![pixel](https://example.com/track)';
   const html = renderer.render(source, false).html;
   assert.doesNotMatch(html, /<script|javascript:|<img/i);
@@ -48,4 +49,22 @@ test('incremental parsing matches a completed render', () => {
   }
   renderer.dispose();
   fresh.dispose();
+});
+
+test('only embeds search images selected by the reply', () => {
+  const image = 'https://example.com/bridge.jpg';
+  const unused = 'https://example.com/unused.jpg';
+  const renderer = createHtmlRenderer(imageUrlOptions([image, unused]));
+  try {
+    const link = renderer.render(`[Photo](${image})`, false).html;
+    assert.ok(link.includes(`href="${image}"`));
+    assert.doesNotMatch(link, /<img/);
+
+    const reply = `![Bridge](${image}) ![Other](https://example.com/tracker) [Bad](javascript:alert)`;
+    const html = renderer.render(reply, false).html;
+    assert.ok(html.includes(`src="${image}"`));
+    assert.doesNotMatch(html, /unused.jpg|tracker|javascript:/);
+  } finally {
+    renderer.dispose();
+  }
 });

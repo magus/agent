@@ -48,6 +48,19 @@ impl CentralService {
             ServiceRequest::Login { request } => {
                 self.login.handle(&self.client, &sender.id, request)
             }
+            ServiceRequest::SearchSources { id, entry_index } => {
+                let directory = self.store.conversation_dir(&id)?;
+                super::search_sources::load(&directory, entry_index)
+            }
+            ServiceRequest::ConversationJson {
+                id,
+                events,
+                offset,
+                snapshot,
+            } => {
+                let directory = self.store.conversation_dir(&id)?;
+                super::conversation_json::chunk(&directory, events, offset, snapshot)
+            }
             ServiceRequest::CheckModel => Ok(json!({"message":self.client.check_model()?})),
             ServiceRequest::SignOut => {
                 for agent in self.loop_by_id.lock().unwrap().values() {

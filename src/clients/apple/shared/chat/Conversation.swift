@@ -18,6 +18,7 @@ struct Entry: Decodable, Equatable {
     var text: String
     var image: String?
     var request: ToolRequest?
+    var image_result_list: [SearchImage]?
 }
 
 struct ToolRequest: Decodable, Equatable {
