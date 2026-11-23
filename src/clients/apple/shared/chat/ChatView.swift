@@ -79,7 +79,8 @@ struct ChatView: View {
                                 }.font(.caption)
                             }
                         }
-                        if (model.sending || model.running) && !model.conversation.has_pending_tools {
+                        if (model.sending || model.running) && !model.conversation.has_pending_tools
+                            && !(model.running && model.conversation.entry_list.last?.role == "Agent") {
                             HStack(spacing: 8) {
                                 ProgressView().controlSize(.small)
                                 Text("Thinking").foregroundStyle(.secondary)

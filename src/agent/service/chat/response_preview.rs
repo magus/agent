@@ -22,6 +22,16 @@ impl ResponsePreview {
     pub fn clear(&mut self) {
         self.text_by_index.clear();
     }
+
+    /// Text that streamed but never completed, as entries that say why it ended.
+    pub fn take_unfinished(&mut self, stopped: bool) -> Vec<Entry> {
+        let reason = if stopped { "Stopped" } else { "Interrupted" };
+        std::mem::take(&mut self.text_by_index)
+            .into_values()
+            .filter(|text| !text.trim().is_empty())
+            .map(|text| Entry::text("Agent", format!("{text}\n\n*{reason} before finishing.*")))
+            .collect()
+    }
 }
 
 #[cfg(test)]
@@ -46,5 +56,24 @@ mod tests {
         let mut visible = history.clone();
         preview.append_to(&mut visible);
         assert_eq!(visible.len(), 1);
+    }
+
+    #[test]
+    fn unfinished_text_is_kept_with_its_reason() {
+        let mut preview = ResponsePreview::default();
+        preview.append(0, "Rivers carve");
+        preview.append(1, "  ");
+        let kept = preview.take_unfinished(true);
+        assert_eq!(kept.len(), 1);
+        assert_eq!(kept[0].role, "Agent");
+        assert_eq!(kept[0].text, "Rivers carve\n\n*Stopped before finishing.*");
+        assert!(preview.take_unfinished(false).is_empty());
+
+        preview.append(0, "Partial");
+        assert!(
+            preview.take_unfinished(false)[0]
+                .text
+                .ends_with("*Interrupted before finishing.*")
+        );
     }
 }

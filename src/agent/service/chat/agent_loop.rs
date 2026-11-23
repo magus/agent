@@ -615,8 +615,24 @@ enum ModelEvent {
 struct ResponsePreviewCleanup<'a>(&'a AgentLoop);
 
 impl Drop for ResponsePreviewCleanup<'_> {
+    // A completed reply clears the preview first; anything left streamed before a stop or failure.
+    // Keep it visible instead of erasing text the user already read. It is not sent to the model.
     fn drop(&mut self) {
-        self.0.response_preview.lock().unwrap().clear();
+        let stopped = self.0.stopped.load(Ordering::SeqCst);
+        let unfinished = self
+            .0
+            .response_preview
+            .lock()
+            .unwrap()
+            .take_unfinished(stopped);
+        if !unfinished.is_empty()
+            && let Err(error) = self.0.change(|conversation| {
+                conversation.entry_list.extend(unfinished);
+                Ok(())
+            })
+        {
+            eprintln!("Could not keep unfinished reply. {error}");
+        }
         self.0.revision.fetch_add(1, Ordering::Relaxed);
     }
 }

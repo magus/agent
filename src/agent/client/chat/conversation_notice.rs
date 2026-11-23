@@ -7,9 +7,9 @@ pub(crate) fn conversation_notice(status: &str) -> &str {
         | "Results retrieved. Send a prompt to continue."
         | "A tool is still running. Retrieve again to check."
         | "Interrupted. Retrieve pending results before continuing."
-        | "Stop requested. Submitted actions may already have acted; retrieve their results."
-        | "Stopped. No further model turns or tools will be submitted. Submitted actions cannot be undone." => {
-            ""
+        | "Stop requested. Submitted actions may already have acted; retrieve their results." => "",
+        "Stopped. No further model turns or tools will be submitted. Submitted actions cannot be undone." => {
+            "Stopped."
         }
         _ => status,
     }
@@ -26,6 +26,12 @@ mod tests {
             ""
         );
         assert_eq!(conversation_notice("Stopping…"), "");
+        assert_eq!(
+            conversation_notice(
+                "Stopped. No further model turns or tools will be submitted. Submitted actions cannot be undone."
+            ),
+            "Stopped."
+        );
         assert_eq!(
             conversation_notice("Disconnected. Connection refused"),
             "Disconnected. Connection refused"
