@@ -145,7 +145,10 @@ impl CentralService {
                         .start(sender, message_id, prompt.clone(), settings);
                 match result {
                     Ok(()) => {
-                        self.store.record_user_message(&id, &prompt)?;
+                        // The message is already running; a failed list update must not report it as rejected.
+                        if let Err(error) = self.store.record_user_message(&id, &prompt) {
+                            eprintln!("Could not update conversation activity. {error}");
+                        }
                         Ok(json!({"accepted":true}))
                     }
                     Err(error) => Ok(json!({"accepted":false, "error":error.to_string()})),
