@@ -93,6 +93,8 @@ fn dispatch(request: Request) -> io::Result<Value> {
             "available_target_list": chat.available_target_list(),
             "default_target_list": chat.default_target_list(),
             "model_settings": chat.model_settings(),
+            "local_device_id": client.devices.local_target().id,
+            "local_unavailable_tools": client.devices.unavailable_tools(),
         })),
         Request::SearchSources {
             service,

@@ -91,9 +91,10 @@ impl ToolConnection {
             ));
         }
         match request {
-            RemoteRequest::Info => {
-                Ok(serde_json::json!({"name": local.name, "tool_list": self.service.tool_list()}))
-            }
+            RemoteRequest::Info => Ok(
+                serde_json::json!({"name": local.name, "tool_list": self.service.tool_list(),
+                    "unavailable_tools": self.service.unavailable_tools()}),
+            ),
             RemoteRequest::Submit { id, tool } => {
                 serde_json::to_value(self.service.tools.submit(host, &id, tool)?)
                     .map_err(io::Error::other)

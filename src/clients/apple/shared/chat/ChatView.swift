@@ -39,7 +39,14 @@ struct ChatView: View {
                                 let enabled = model.enabled_device_list.contains(device)
                                 Button {
                                     Task { await model.toggle_device(device) }
-                                } label: { Text(device.name)
+                                } label: {
+                                    HStack(spacing: 4) {
+                                        Text(device.name)
+                                        if computer_unavailable(device) != nil {
+                                            Image(systemName: "exclamationmark.triangle.fill")
+                                                .foregroundStyle(.orange)
+                                        }
+                                    }
                                     .font(.caption)
                                     .padding(.horizontal, 10).padding(.vertical, 6)
                                     .background(.quaternary, in: Capsule())
@@ -48,9 +55,15 @@ struct ChatView: View {
                                 .buttonStyle(.plain)
                                 .disabled(model.saving_devices || model.conversation.id.isEmpty)
                                 .accessibilityValue(enabled ? "Enabled" : "Disabled")
+                                .accessibilityHint(computer_unavailable(device) ?? "")
+                                .help(computer_unavailable(device) ?? "")
                             }
                         }.padding(.horizontal)
                     }.padding(.vertical, 8)
+                }
+                if let reason = model.local_computer_unavailable,
+                   model.enabled_device_list.contains(where: { $0.id == model.local_device_id }) {
+                    computer_unavailable_banner(reason)
                 }
                 ConversationScrollView(sent_message_id: model.pending_entry?.message_id) {
                     VStack(alignment: .leading, spacing: 20) {
@@ -163,6 +176,24 @@ struct ChatView: View {
             if model.service_host.isEmpty { ServiceConnectionView(model: model) }
             else { ChatGPTView(service: model.service_host) }
         }
+    }
+
+    private func computer_unavailable(_ device: Device) -> String? {
+        device.id == model.local_device_id ? model.local_computer_unavailable : nil
+    }
+
+    private func computer_unavailable_banner(_ reason: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(.orange)
+            Text(reason).foregroundStyle(.secondary).textSelection(.enabled)
+            Spacer(minLength: 0)
+            #if os(macOS)
+            Button("Desktop permissions…") { open_window(id: "desktop-permissions") }
+            #endif
+        }
+        .font(.caption)
+        .padding(.horizontal)
+        .padding(.bottom, 8)
     }
 
     private func message(_ entry: Entry, index: Int? = nil, active: Bool = false) -> some View {

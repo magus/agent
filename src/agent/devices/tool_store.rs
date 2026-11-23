@@ -21,7 +21,7 @@ pub(super) struct ToolStore {
     runtime_dir: PathBuf,
     job_by_id: Mutex<HashMap<String, Job>>,
     cancellation_by_id: Mutex<HashMap<String, Arc<AtomicBool>>>,
-    computer_permissions: Mutex<Option<(Instant, bool)>>,
+    computer_permissions: Mutex<Option<(Instant, Result<(), String>)>>,
 }
 
 impl ToolStore {
@@ -51,17 +51,18 @@ impl ToolStore {
         }))
     }
 
-    pub fn computer_available(&self) -> bool {
+    /// Ok when computer use can run; otherwise a reason that says how to fix it.
+    pub fn computer_status(&self) -> Result<(), String> {
         let mut cached = self.computer_permissions.lock().unwrap();
-        if let Some((checked, ready)) = *cached
+        if let Some((checked, status)) = &*cached
             && checked.elapsed() < Duration::from_secs(2)
         {
-            return ready;
+            return status.clone();
         }
 
-        let ready = super::computer_permissions::read(&self.runtime_dir).unwrap_or(false);
-        *cached = Some((Instant::now(), ready));
-        ready
+        let status = super::computer_permissions::check(&self.runtime_dir);
+        *cached = Some((Instant::now(), status.clone()));
+        status
     }
 
     pub fn submit(self: &Arc<Self>, owner: &str, id: &str, tool: Tool) -> io::Result<Job> {
@@ -171,12 +172,16 @@ impl ToolStore {
 
                 // The running helper can retain an old grant result after revocation.
                 // Check through a fresh process before sending it any action.
-                let ready = super::computer_permissions::read(&self.runtime_dir).unwrap_or(false);
-                if !ready {
-                    return Err(io::Error::other("Desktop permissions are not enabled."));
-                }
+                super::computer_permissions::check(&self.runtime_dir).map_err(io::Error::other)?;
 
-                let mut socket = UnixStream::connect(self.runtime_dir.join("agent.sock"))?;
+                let mut socket =
+                    UnixStream::connect(self.runtime_dir.join("agent.sock")).map_err(|error| {
+                        io::Error::other(format!(
+                            "Computer use is unavailable because Agent's desktop service is not \
+                             running on this Mac ({error}). Open Agent.app on this Mac; it starts \
+                             the service."
+                        ))
+                    })?;
                 socket.set_read_timeout(Some(Duration::from_secs(40)))?;
                 socket.set_write_timeout(Some(Duration::from_secs(10)))?;
                 socket.write_all(&serde_json::to_vec(&action)?)?;

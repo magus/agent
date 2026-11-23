@@ -167,7 +167,8 @@ impl DeviceService {
             "status_by_id": *self.status_by_id.lock().unwrap(),
             "connection_status": *self.connection_status.lock().unwrap(),
             "pending_list": pending_list,
-            "tool_list": self.tool_list()})
+            "tool_list": self.tool_list(),
+            "unavailable_tools": self.unavailable_tools()})
     }
 
     pub fn rename(&self, name: String) -> io::Result<Value> {
@@ -233,7 +234,7 @@ impl DeviceService {
     pub(in crate::devices) fn tool_list(&self) -> Vec<String> {
         if self.execution_device {
             let mut tool_list = vec!["shell".into()];
-            if self.tools.computer_available() {
+            if self.tools.computer_status().is_ok() {
                 tool_list.push("computer".into());
             }
             tool_list
@@ -241,6 +242,17 @@ impl DeviceService {
             vec!["conversations".into()]
         } else {
             Vec::new()
+        }
+    }
+
+    /// Tools this device would offer but cannot right now, each with a reason and fix.
+    pub(crate) fn unavailable_tools(&self) -> Value {
+        if !self.execution_device {
+            return json!({});
+        }
+        match self.tools.computer_status() {
+            Ok(()) => json!({}),
+            Err(reason) => json!({"computer": reason}),
         }
     }
 

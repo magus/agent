@@ -269,6 +269,7 @@ impl AgentLoop {
                 let info = self.devices.info(&target.id);
                 target_list.push(json!({"host":target.id, "name":target.name,
                     "tools":info.as_ref().ok().map(|info| &info["tool_list"]),
+                    "unavailable_tools":info.as_ref().ok().map(|info| &info["unavailable_tools"]),
                     "error":info.err().map(|error| error.to_string())}));
             }
             let mut request = {
