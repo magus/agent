@@ -13,7 +13,11 @@ struct ToolResultView: View {
                     .font(.system(.caption, design: .monospaced))
                     .textSelection(.enabled)
 
-                if !entry.text.isEmpty {
+                if is_computer {
+                    if let outcome = computer_outcome {
+                        Text(outcome).font(.callout).textSelection(.enabled)
+                    }
+                } else if !entry.text.isEmpty {
                     Text(entry.text)
                         .font(.system(.callout, design: .monospaced))
                         .textSelection(.enabled)
@@ -39,6 +43,27 @@ struct ToolResultView: View {
             .font(.callout)
             .foregroundStyle(.secondary)
         }
+        .tint(.secondary)
+    }
+
+    private var is_computer: Bool { request.tool["tool"]?.string == "computer" }
+
+    /// One readable line for a finished computer action. The full result stays in the conversation JSON.
+    private var computer_outcome: String? {
+        guard request.finished, let data = entry.text.data(using: .utf8),
+              let job = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        let result = job["result"] as? [String: Any] ?? [:]
+        if let error = result["error"] as? String { return error }
+        let action = result["result"] as? [String: Any] ?? [:]
+        var parts: [String] = []
+        if let capture = action["capture"] as? [String: Any],
+           let width = capture["width"] as? Int, let height = capture["height"] as? Int {
+            parts.append("Screenshot \(width) × \(height)")
+        }
+        if let locked = action["locked"] as? Bool {
+            parts.append(locked ? "Mac was locked" : "Mac was unlocked")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private var summary: String {

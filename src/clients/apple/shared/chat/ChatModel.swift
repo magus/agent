@@ -141,7 +141,11 @@ final class ChatModel {
             if !service_host.isEmpty && models_host != service_host {
                 model_option_list = try await client.request(["action": "models"], as: [ModelOption].self)
                 models_host = service_host
-                if selected_model.isEmpty { selected_model = model_option_list.first?.model ?? "" }
+            }
+            // Fall back to the first model only once a loaded conversation has none, so the picker
+            // never flashes a model the conversation doesn't use.
+            if selected_model.isEmpty && !conversation.id.isEmpty && conversation.model.isEmpty {
+                selected_model = model_option_list.first?.model ?? ""
             }
         } catch {
             self.error = error.localizedDescription

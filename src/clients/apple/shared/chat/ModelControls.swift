@@ -4,6 +4,10 @@ struct ModelControls: View {
     @Bindable var model: ChatModel
 
     var body: some View {
+        if !model.selected_model.isEmpty { controls }
+    }
+
+    @ViewBuilder private var controls: some View {
         #if os(macOS)
         HStack {
             Spacer()

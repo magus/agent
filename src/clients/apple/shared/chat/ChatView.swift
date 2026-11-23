@@ -195,6 +195,19 @@ struct ChatView: View {
     @ViewBuilder private var empty_state: some View {
         if model.creating {
             ProgressView("Creating conversation…")
+        } else if !model.initialized || (!model.service_host.isEmpty && model.conversation.id.isEmpty
+                                         && model.conversation_list.isEmpty && model.error == nil) {
+            if model.error == nil { ProgressView() }
+        } else if model.service_host.isEmpty {
+            VStack(spacing: 10) {
+                Text("Connect to an Agent service").font(.headline)
+                Text("The service holds your ChatGPT sign-in and conversations.")
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("Connect to service…") { model.sheet = .connection }
+            }
+            .padding(24)
+            .frame(maxWidth: 420)
         } else if !model.conversation.id.isEmpty, model.conversation.entry_list.isEmpty,
                   model.pending_entry == nil, !model.sending, !model.running {
             VStack(spacing: 6) {
