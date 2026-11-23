@@ -1,5 +1,11 @@
-pub(crate) fn conversation_notice(status: &str) -> &str {
-    match status {
+pub(crate) fn conversation_notice(status: &str) -> String {
+    if let Some(detail) = status.strip_prefix("Disconnected. ") {
+        return format!(
+            "Can't reach the Agent service. Check that it's running and that this device is on \
+             Tailscale. ({detail})"
+        );
+    }
+    let notice = match status {
         "Ready"
         | "Running"
         | "Stopping…"
@@ -12,7 +18,8 @@ pub(crate) fn conversation_notice(status: &str) -> &str {
             "Stopped."
         }
         _ => status,
-    }
+    };
+    notice.into()
 }
 
 #[cfg(test)]
@@ -34,7 +41,8 @@ mod tests {
         );
         assert_eq!(
             conversation_notice("Disconnected. Connection refused"),
-            "Disconnected. Connection refused"
+            "Can't reach the Agent service. Check that it's running and that this device is on \
+             Tailscale. (Connection refused)"
         );
         assert_eq!(
             conversation_notice("Sign in with ChatGPT first."),
