@@ -16,7 +16,7 @@ are in the [desktop permission plan](../../docs/plans/desktop-permissions/README
 
 Build and launch Agent.app using the [native build instructions](../../packaging/apple/README.md).
 The app starts this helper in the logged-in graphical session.
-Grant Accessibility and Screen Recording to Agent. After reboot, login is still required to create
+Grant Accessibility and Screen & System Audio Recording to Agent. After reboot, login is still required to create
 that desktop. Launch at login is not implemented yet.
 
 The runtime directory is `~/Library/Application Support/Agent/`, with mode 0700;

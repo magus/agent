@@ -19,7 +19,7 @@ struct DesktopPermissionsView: View {
                     Button("Open Settings") { Task { await open_settings(accessibility: true) } }
                 }
             }
-            LabeledContent("Screen Recording") {
+            LabeledContent("Screen & System Audio Recording") {
                 if permissions.screen_recording {
                     Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
                         .accessibilityLabel("Enabled")
