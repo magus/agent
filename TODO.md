@@ -21,12 +21,9 @@
 
 - menu bar item to quickly see devices, active conversations, desktop service status, etc.
 
-- display current detected computer use permissions and allow quickly opening the corresponding system settings pages to enable
-  what determines when an app shows up in the system settings?
-  ideally we can have the Agent entry there so the user can easily just toggle it on?
-  also i was having a conversation with a model when accessibility permissions were missing and it just said computer use was unavailable
-  it would be better if the model understood WHY and could tell me exactly what to do to get it enabled
-  that means we might need to adjust how that error state is shown to the model so it knows
+- computer use permissions: the model and the Mac UI now get the specific missing permission and the
+  fix, and Desktop Permissions… opens each System Settings pane. Still open: what determines when Agent
+  appears in those System Settings lists, so the user can simply toggle it on.
 
 - can openai api expose web search to model or do we have to build something equivalent ourselves?
 
