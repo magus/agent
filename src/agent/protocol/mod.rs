@@ -12,7 +12,7 @@ mod service_request;
 mod target;
 mod tool_request;
 
-pub(crate) use conversation_record::ConversationRecord;
+pub(crate) use conversation_record::{ConversationRecord, default_title, title_from_message};
 pub(crate) use conversation_response::ConversationResponse;
 pub(crate) use conversation_view::ConversationView;
 pub(crate) use entry::Entry;

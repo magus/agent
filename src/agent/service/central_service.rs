@@ -140,11 +140,14 @@ impl CentralService {
                     model,
                     reasoning_effort,
                 };
-                let result = self
-                    .loop_for(&id)?
-                    .start(sender, message_id, prompt, settings);
+                let result =
+                    self.loop_for(&id)?
+                        .start(sender, message_id, prompt.clone(), settings);
                 match result {
-                    Ok(()) => Ok(json!({"accepted":true})),
+                    Ok(()) => {
+                        self.store.record_user_message(&id, &prompt)?;
+                        Ok(json!({"accepted":true}))
+                    }
                     Err(error) => Ok(json!({"accepted":false, "error":error.to_string()})),
                 }
             }

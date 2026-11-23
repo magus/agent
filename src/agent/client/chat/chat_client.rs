@@ -126,7 +126,7 @@ impl ChatClient {
             .as_str()
             .ok_or_else(|| io::Error::other("Invalid pending conversation"))?;
         uuid::Uuid::parse_str(id).map_err(io::Error::other)?;
-        let title = format!("Conversation {}", &id[..8]);
+        let title = crate::protocol::default_title(id);
         self.request_at(&host, json!({"action":"create", "id":id, "title":title}))?;
         self.select(id.into())?;
         fs::remove_file(path)

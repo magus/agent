@@ -23,7 +23,7 @@ fn conversation_response_round_trips_history_and_tools() {
         },
         "record": {
             "id": "conversation-id", "title": "Existing chat", "creator": "macbook",
-            "allowed_target_list": ["mini"]
+            "allowed_target_list": ["mini"], "last_activity": 1795434000
         },
         "running": true, "revision": 5, "image_by_id": {"capture.jpg": "image-bytes"},
         "target_list": [{"id": "mini", "name": "Mac mini"}]
@@ -45,7 +45,7 @@ fn service_catalog_round_trips_grants() {
     let payload = json!({
         "conversation_list": [{
             "id": "chat", "title": "Existing chat", "creator": "macbook",
-            "allowed_target_list": ["mini"]
+            "allowed_target_list": ["mini"], "last_activity": 1795434000
         }],
         "target_list": [{"id": "mini", "name": "Mac mini"}],
         "default_target_list": ["mini"],

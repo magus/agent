@@ -12,8 +12,6 @@
 - what happens when we ask it to say view a tweet or access something like the latest stock price?
   can it use web/sonic? we need to make sure we are roughly matching capabilities available in codex/claude
 
-- sort sidebar conversations by time of last user message sent, recent first
-
 - decide whether the desktop helper should stop sharing Agent's bundle ID
   it registers with LaunchServices as a UI element under `com.iamnoah.agent` because it initializes
   `NSApplication`, so tools that look up the app by bundle ID can land on the helper. Orphans are now
