@@ -200,8 +200,7 @@ struct ChatView: View {
     @ViewBuilder private var empty_state: some View {
         if model.creating {
             ProgressView("Creating conversation…")
-        } else if !model.initialized || (!model.service_host.isEmpty && model.conversation.id.isEmpty
-                                         && model.conversation_list.isEmpty && model.error == nil) {
+        } else if !model.initialized || (!model.service_host.isEmpty && !model.loaded) {
             if model.error == nil { ProgressView() }
         } else if model.service_host.isEmpty {
             VStack(spacing: 10) {
@@ -213,6 +212,11 @@ struct ChatView: View {
             }
             .padding(24)
             .frame(maxWidth: 420)
+        } else if model.conversation.id.isEmpty && model.conversation_list.isEmpty && model.notice.isEmpty {
+            VStack(spacing: 10) {
+                Text("No conversations yet").font(.headline)
+                Button("New conversation") { Task { await model.create() } }
+            }
         } else if !model.conversation.id.isEmpty, model.conversation.entry_list.isEmpty,
                   model.pending_entry == nil, !model.sending, !model.running {
             VStack(spacing: 6) {

@@ -58,6 +58,7 @@ struct Snapshot: Decodable {
     let available_target_list: [Device]
     let default_target_list: [String]
     let model_settings: ModelSettings
+    let revision: UInt64
     let local_device_id: String
     let local_unavailable_tools: [String: String]
 }

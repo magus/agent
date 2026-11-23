@@ -21,6 +21,8 @@ final class ChatModel {
     var model_option_list: [ModelOption] = []
     var default_device_id_list: [String] = []
     var default_model_settings = ModelSettings()
+    /// True once the client has a first answer (or error) from the service.
+    private(set) var loaded = false
     var local_device_id = ""
     /// Why computer use is off on this device, with the fix; nil when it is available.
     var local_computer_unavailable: String?
@@ -122,6 +124,7 @@ final class ChatModel {
             device_list = snapshot.available_target_list
             default_device_id_list = snapshot.default_target_list
             default_model_settings = snapshot.model_settings
+            loaded = snapshot.revision > 0
             local_device_id = snapshot.local_device_id
             local_computer_unavailable = snapshot.local_unavailable_tools["computer"]
 
