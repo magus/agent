@@ -25,6 +25,14 @@ struct AgentCommands: Commands {
             Divider()
             Button("Desktop Permissions…") { open_window(id: "desktop-permissions") }
         }
+        CommandGroup(after: .toolbar) {
+            Button("Conversation JSON") {
+                open_window(id: "conversation-json",
+                            value: ConversationJSONTarget(service: model.service_host, id: model.conversation.id))
+            }
+            .keyboardShortcut("j", modifiers: [.command, .option])
+            .disabled(model.service_host.isEmpty || model.conversation.id.isEmpty)
+        }
     }
 }
 #endif

@@ -117,21 +117,6 @@ struct ChatView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) { new_conversation_button }
                 ToolbarItem(placement: .primaryAction) { settings_menu }
-                ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        Button("View conversation JSON…") {
-                            #if os(macOS)
-                            open_window(id: "conversation-json", value: ConversationJSONTarget(service: model.service_host, id: model.conversation.id))
-                            #else
-                            model.sheet = .conversation_json
-                            #endif
-                        }
-                    } label: {
-                        Label("Conversation actions", systemImage: "ellipsis.circle")
-                    }
-                    .accessibilityLabel("Conversation actions")
-                    .disabled(model.service_host.isEmpty || model.conversation.id.isEmpty)
-                }
             }
         }
         .task {
@@ -195,6 +180,15 @@ struct ChatView: View {
             Button("Devices…") { model.sheet = .devices }
             Button("ChatGPT account…") { model.sheet = .chatgpt }
                 .disabled(model.service_host.isEmpty)
+            Divider()
+            Button("View conversation JSON…") {
+                #if os(macOS)
+                open_window(id: "conversation-json", value: ConversationJSONTarget(service: model.service_host, id: model.conversation.id))
+                #else
+                model.sheet = .conversation_json
+                #endif
+            }
+            .disabled(model.service_host.isEmpty || model.conversation.id.isEmpty)
         } label: {
             Label("Settings", systemImage: "gearshape")
         }
