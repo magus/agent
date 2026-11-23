@@ -59,7 +59,7 @@ See [direct tool calls](src/agent/devices/README.md) to run commands and desktop
 Connect to a [central service](docs/central-service.md#startup), then sign in through
 **ChatGPT account…** in the settings (gear) menu once. Every paired client shares that account and conversation history.
 Choose a conversation and model, then send a task. **Devices** shows each device by name.
-Enabled devices use full contrast; disabled devices are gray.
+Enabled devices show a checkmark and full contrast; disabled devices are gray.
 Click a device to change its access for the conversation. Each tool call names its device.
 Chat works from any connected device, even when no devices are enabled for tools.
 
