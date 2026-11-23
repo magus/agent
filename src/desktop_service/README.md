@@ -24,7 +24,10 @@ The runtime directory is `~/Library/Application Support/Agent/`, with mode 0700;
 these tools to explicitly paired devices over TLS. Other processes of the same user can send local
 requests. The socket is not a sandbox against that user's apps.
 
-The native app restarts a failed helper after two seconds. Quit Agent to stop its helper. The central
+The native app restarts a failed helper, starting after two seconds and backing off to a minute
+while it keeps failing at once. Quit Agent to stop its helper. The helper exits when its app exits,
+even after a crash or forced quit, and the next launch stops any leftover helper from the same
+bundle whose app is gone. The central
 Rust service runs independently and continues when the desktop app quits.
 
 Closing the setup window leaves the service running. Reopen it through

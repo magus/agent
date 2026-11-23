@@ -45,6 +45,7 @@ struct service_main {
             case "--open-screen-recording":
                 try open_settings("Privacy_ScreenCapture")
             case "--serve":
+                exit_with_parent()
                 try local_socket.serve(socket_path) { request in
                     let result = handle(request, controller: controller, output_dir: output_dir)
                     return try! JSONSerialization.data(withJSONObject: result, options: [.sortedKeys])
@@ -78,6 +79,21 @@ struct service_main {
             emit(["ok": false, "error": String(describing: error)])
             exit(1)
         }
+    }
+
+    // Agent.app supervises this helper. If the app is killed or crashes, stop serving so a stale
+    // helper never keeps the socket from the next app launch. The next helper removes the
+    // leftover socket file because nothing answers on it.
+    private static var parent_watch: DispatchSourceProcess?
+
+    private static func exit_with_parent() {
+        let parent = getppid()
+        let source = DispatchSource.makeProcessSource(identifier: parent, eventMask: .exit,
+                                                      queue: .global())
+        source.setEventHandler { exit(0) }
+        source.resume()
+        parent_watch = source
+        if getppid() != parent || parent == 1 { exit(0) }
     }
 
     private static func open_settings(_ pane: String) throws {
