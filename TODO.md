@@ -29,6 +29,9 @@
 
 - Dock is not visible in desktop service screenshots
   figure out if we can make it visible and interact with it, that would be very useful
+  finding (Nov 23): in the locked mini's capture, no Dock-level window (layer 20) is in the window list
+  at all, so the Dock seems to be off-screen while the session is locked. The mini doesn't auto-hide the
+  Dock. Unlocked capture is untested with a visible Dock (this MacBook auto-hides it).
 
 - allow editing the human readable names for devices we register
   defaulting to the name reported by the device is perfect, if we aren't doing that ensure we are
