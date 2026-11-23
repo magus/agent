@@ -3,7 +3,7 @@
 The native app's `src/clients/apple/macos/DesktopService.swift` starts and supervises the helper in `swift/`.
 The Swift helper has no package dependencies. It runs locally on the mini and
 accepts screenshots, mouse coordinates, keys, and bulk text. It contains no app-specific controller
-branches or accessibility-tree queries. It is the locked-desktop proof, not a model or messaging loop.
+branches or accessibility-tree queries. It is not a model or messaging loop.
 
 For the signed native app containing this helper, see
 [native builds](../../packaging/apple/README.md). Run the service through that app so it uses
@@ -30,8 +30,9 @@ Rust service runs independently and continues when the desktop app quits.
 Closing the setup window leaves the service running. Reopen it through
 **Agent → Desktop permissions…**. Reopening Agent shows the chat window. **Quit Agent** stops both processes.
 
-This proof deliberately rejects actions unless both the session lock flag and `IOConsoleLocked`
-are true. It never unlocks the Mac. Ordinary unlocked operation is outside this proof's guard.
+Actions run whether the Mac is locked or unlocked. Each result reports `locked` from the session lock
+flag and `IOConsoleLocked`. The service never unlocks the Mac. While unlocked, input moves the user's
+pointer and focus. An earlier version accepted actions only while locked; that restriction was removed.
 
 ## Requests
 

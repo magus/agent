@@ -17,7 +17,6 @@ final class desktop_control {
                 selected_window = nil
             }
         }
-        try require_locked()
         try require_permissions()
         let started = ProcessInfo.processInfo.systemUptime
         guard let operation = request["operation"] as? String else {
@@ -31,7 +30,6 @@ final class desktop_control {
             if let path = observation["path"] as? String {
                 try? FileManager.default.removeItem(atPath: path)
             }
-            try require_locked()
         }
 
         var result: [String: Any] = ["operation": operation]
@@ -63,28 +61,19 @@ final class desktop_control {
             throw control_error("Unsupported operation: \(operation)")
         }
 
-        try require_locked()
         result["dispatch_seconds"] = ProcessInfo.processInfo.systemUptime - started
         Thread.sleep(forTimeInterval: 0.15)
         result["capture"] = try capture(output_dir)
-        try require_locked()
-        result["locked"] = true
+        result["locked"] = screen_is_locked()
         capture_ready = true
         completed = true
         return result
     }
 
-    // Only the local setup window calls this. Socket requests retain their lock guard.
+    // The local setup window calls this to show a preview while the user is present.
     func capture_for_setup(_ output_dir: URL) throws -> [String: Any] {
-        try require_unlocked()
-        try require_permissions()
-        let result = try capture(output_dir)
-        do {
-            try require_unlocked()
-        } catch {
-            if let path = result["path"] as? String { try? FileManager.default.removeItem(atPath: path) }
-            throw error
-        }
+        var result = try capture(output_dir)
+        result["locked"] = screen_is_locked()
         return result
     }
 
@@ -137,7 +126,6 @@ final class desktop_control {
             var server_dragging = false
             for segment_end in point_list {
                 for step in 1...20 {
-                    try require_locked()
                     let fraction = Double(step) / 20
                     let point = CGPoint(x: segment_start.x + (segment_end.x - segment_start.x) * fraction,
                                         y: segment_start.y + (segment_end.y - segment_start.y) * fraction)
@@ -191,7 +179,6 @@ final class desktop_control {
             guard let code = key["code"] as? UInt16 else { throw control_error("Invalid key code") }
             let flags = CGEventFlags(rawValue: key["flags"] as? UInt64 ?? 0)
             for down in [true, false] {
-                try require_locked()
                 guard let event = CGEvent(keyboardEventSource: nil, virtualKey: code, keyDown: down) else {
                     throw control_error("Cannot create keyboard event")
                 }
@@ -367,36 +354,16 @@ private func read_point(_ request: [String: Any], x: String, y: String) throws -
     return CGPoint(x: px, y: py)
 }
 
-private func require_locked() throws {
+// Reported with each result so the model knows whether a person may be at the Mac.
+private func screen_is_locked() -> Bool {
     let session = CGSessionCopyCurrentDictionary() as? [String: Any]
-    guard session?["CGSSessionScreenIsLocked"] as? Bool == true else {
-        throw control_error("Expected locked graphical session")
-    }
-
+    if session?["CGSSessionScreenIsLocked"] as? Bool == true { return true }
     let root = IORegistryGetRootEntry(kIOMainPortDefault)
-    guard root != 0 else { throw control_error("Cannot read console lock state") }
-    defer { IOObjectRelease(root) }
-
-    let property = IORegistryEntryCreateCFProperty(root, "IOConsoleLocked" as CFString,
-                                                  kCFAllocatorDefault, 0)?.takeRetainedValue()
-    guard property as? Bool == true else {
-        throw control_error("Expected locked console")
-    }
-}
-
-private func require_unlocked() throws {
-    guard let session = CGSessionCopyCurrentDictionary() as? [String: Any],
-          session["CGSSessionScreenIsLocked"] as? Bool != true else {
-        throw control_error("Unlock this Mac to check the capture preview")
-    }
-    let root = IORegistryGetRootEntry(kIOMainPortDefault)
-    guard root != 0 else { throw control_error("Cannot read console lock state") }
+    guard root != 0 else { return false }
     defer { IOObjectRelease(root) }
     let property = IORegistryEntryCreateCFProperty(root, "IOConsoleLocked" as CFString,
                                                   kCFAllocatorDefault, 0)?.takeRetainedValue()
-    guard property as? Bool == false else {
-        throw control_error("Unlock this Mac to check the capture preview")
-    }
+    return property as? Bool == true
 }
 
 private func require_permissions() throws {

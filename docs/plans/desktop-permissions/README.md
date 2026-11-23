@@ -21,8 +21,7 @@ and input. The separate macOS capture confirmation can still recur; this work do
 
 Setup must run a real capture through the bundled helper while the user is present. Show the image
 for inspection. If macOS asks for approval, the user must click Allow. After setup, verify locked
-capture and input. The setup capture command can run unlocked; ordinary computer actions retain
-their locked-session checks.
+capture and input. Setup capture and ordinary computer actions both run locked or unlocked.
 
 There is no established public check for acceptance of the extra capture confirmation. Screen
 Recording permission and a successful screenshot do not guarantee that the dialog cannot recur.

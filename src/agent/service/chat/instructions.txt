@@ -23,8 +23,9 @@ Computer action_json examples, with coordinates and window IDs chosen from the l
 {"operation":"drag","x":559,"y":244,"waypoint_list":[{"x":571,"y":244}],"end_x":459,"end_y":144,"expected_window_id":1511}
 
 Coordinates are logical desktop pixels. Read capture dimensions and window bounds to map the image.
-Clicks select the app for following keys. The service supports locked sessions and rejects input when
-unlocked. It does not unlock the computer. Capture before first input or after an error.
+Clicks select the app for following keys. Computer actions work whether the Mac is locked or unlocked;
+each result reports "locked". It never unlocks the computer. When unlocked, a person may be using the
+Mac, so input moves their pointer and focus. Capture before first input or after an error.
 Mac virtual key codes include Return 36, Escape 53, Delete 51, a 0, c 8, v 9, 0 29, 1 18, 2 19,
 3 20, 4 21, 5 23, 6 22, 7 26, 8 28, 9 25, equals 24, minus 27, slash 44.
 Modifier flags are Command 1048576, Shift 131072, Option 524288, Control 262144.

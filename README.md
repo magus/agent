@@ -45,7 +45,8 @@ open dist/Agent.app
 4. Open **Agent → Desktop permissions…**, choose **Check capture**, and confirm the preview.
 
 Allow the additional screen-capture confirmation if macOS shows it when capturing.
-Lock the Mac before sending desktop-control requests; the current service rejects unlocked use.
+Desktop control works whether the Mac is locked or unlocked. Each result reports the lock state.
+It never unlocks the Mac. While unlocked, its input moves the pointer and focus of whoever is using it.
 
 ## devices
 
