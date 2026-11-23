@@ -42,7 +42,7 @@ open dist/Agent.app
 1. Open **System Settings → Privacy & Security**.
 2. Add `Agent.app` to **Accessibility** and **Screen & System Audio Recording** and enable both.
 3. Quit and reopen `Agent.app`
-4. Open **Agent → Desktop permissions…**, choose **Check capture**, and confirm the preview.
+4. Open **Agent → Desktop Permissions…**, choose **Check capture**, and confirm the preview.
 
 Allow the additional screen-capture confirmation if macOS shows it when capturing.
 Desktop control works whether the Mac is locked or unlocked. Each result reports the lock state.
@@ -50,20 +50,20 @@ It never unlocks the Mac. While unlocked, its input moves the pointer and focus 
 
 ## devices
 
-Open **Devices…** from the globe menu to pair devices and revoke access.
+Open **Devices…** from the settings (gear) menu, or the Agent menu on the Mac, to pair devices and revoke access.
 Pairing is directional and requires approval on the target.
 See [direct tool calls](src/agent/devices/README.md) to run commands and desktop actions without a model.
 
 ## chat
 
 Connect to a [central service](docs/central-service.md#startup), then sign in through
-**ChatGPT…** in the globe menu once. Every paired client shares that account and conversation history.
+**ChatGPT account…** in the settings (gear) menu once. Every paired client shares that account and conversation history.
 Choose a conversation and model, then send a task. **Devices** shows each device by name.
 Enabled devices use full contrast; disabled devices are gray.
 Click a device to change its access for the conversation. Each tool call names its device.
 Chat works from any connected device, even when no devices are enabled for tools.
 
-**Conversation settings…** in the globe menu sets the model, reasoning level, and enabled devices for new
+**Conversation settings…** in the settings (gear) menu (⌘, on the Mac) sets the model, reasoning level, and enabled devices for new
 conversations started from this device. Automatic reasoning uses the model’s default. Existing conversations are unchanged.
 
 Typing from non-text controls focuses the composer. Conversation text can be selected and copied. Shift+Esc focuses the composer.

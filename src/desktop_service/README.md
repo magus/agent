@@ -31,7 +31,7 @@ bundle whose app is gone. The central
 Rust service runs independently and continues when the desktop app quits.
 
 Closing the setup window leaves the service running. Reopen it through
-**Agent → Desktop permissions…**. Reopening Agent shows the chat window. **Quit Agent** stops both processes.
+**Agent → Desktop Permissions…**. Reopening Agent shows the chat window. **Quit Agent** stops both processes.
 
 Actions run whether the Mac is locked or unlocked. Each result reports `locked` from the session lock
 flag and `IOConsoleLocked`. The service never unlocks the Mac. While unlocked, input moves the user's

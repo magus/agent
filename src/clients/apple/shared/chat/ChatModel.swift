@@ -4,8 +4,15 @@ import Observation
 import UIKit
 #endif
 
+enum ChatSheet: String, Identifiable {
+    case connection, settings, devices, chatgpt, conversation_json
+    var id: String { rawValue }
+}
+
 @MainActor @Observable
 final class ChatModel {
+    var sheet: ChatSheet?
+    private(set) var creating = false
     var conversation = Conversation()
     var conversation_list: [ConversationRecord] = []
     var service_list: [Device] = []
@@ -149,6 +156,13 @@ final class ChatModel {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    func create() async {
+        guard !creating else { return }
+        creating = true
+        defer { creating = false }
+        await perform(["action": "create"])
     }
 
     func select(_ id: String) async {

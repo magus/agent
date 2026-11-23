@@ -11,7 +11,7 @@ struct AgentApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: 960, height: 720)
-        .commands { AgentCommands() }
+        .commands { AgentCommands(model: model) }
 
         WindowGroup("Conversation JSON", id: "conversation-json", for: ConversationJSONTarget.self) { $target in
             if let target {
@@ -21,7 +21,7 @@ struct AgentApp: App {
         .defaultSize(width: 1280, height: 900)
         .commandsRemoved()
 
-        Window("Desktop permissions", id: "desktop-permissions") {
+        Window("Desktop Permissions", id: "desktop-permissions") {
             DesktopPermissionsView()
         }
         .defaultSize(width: 480, height: 440)

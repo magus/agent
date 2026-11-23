@@ -32,7 +32,7 @@ fn status(accessibility: bool, screen_recording: bool) -> Result<(), String> {
     let missing = missing.join(" and ");
     Err(format!(
         "Computer use is off because Agent lacks the {missing} {noun} on this Mac. \
-         Open Agent → Desktop permissions… (or System Settings → Privacy & Security → {missing}), \
+         Open Agent → Desktop Permissions… (or System Settings → Privacy & Security → {missing}), \
          turn on Agent, then quit and reopen Agent."
     ))
 }

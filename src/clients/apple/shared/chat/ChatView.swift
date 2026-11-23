@@ -4,11 +4,6 @@ struct ChatView: View {
     @Bindable var model: ChatModel
     @State private var expanded_id_set: Set<String> = []
     @FocusState private var composer_focused: Bool
-    @State private var showing_connection = false
-    @State private var showing_json = false
-    @State private var showing_settings = false
-    @State private var showing_devices = false
-    @State private var showing_chatgpt = false
     @State private var composer_height: CGFloat = 46
     #if os(macOS)
     @Environment(\.openWindow) private var open_window
@@ -29,7 +24,12 @@ struct ChatView: View {
                 }
             }
             .navigationTitle("Conversations")
-
+            #if os(iOS)
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) { settings_menu }
+                ToolbarItem(placement: .primaryAction) { new_conversation_button }
+            }
+            #endif
         } detail: {
             VStack(spacing: 0) {
                 if !model.device_list.isEmpty {
@@ -103,47 +103,26 @@ struct ChatView: View {
                     .frame(maxWidth: .infinity)
                 }
                 .id(model.service_host + "/" + model.conversation.id)
+                .overlay { empty_state }
                 composer
             }
             .navigationTitle("")
             .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button("New conversation", systemImage: "square.and.pencil") {
-                        Task { await model.perform(["action": "create"]) }
-                    }
-                    .disabled(!model.initialized)
-                }
-                ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        ForEach(model.service_list) { service in
-                            Button(service.name) {
-                                Task { await model.perform(["action": "connect", "host": service.id]) }
-                            }
-                        }
-                        Divider()
-                        Button("Connect to service…") { showing_connection = true }
-                        Button("Devices…") { showing_devices = true }
-                        Button("ChatGPT…") { showing_chatgpt = true }
-                            .disabled(model.service_host.isEmpty)
-                        Button("Conversation settings…") { showing_settings = true }
-                            .disabled(model.service_host.isEmpty)
-                    } label: {
-                        Label("Service", systemImage: "network")
-                    }
-                    .disabled(!model.initialized)
-                }
+                ToolbarItem(placement: .primaryAction) { new_conversation_button }
+                ToolbarItem(placement: .primaryAction) { settings_menu }
                 ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Button("View conversation JSON…") {
                             #if os(macOS)
                             open_window(id: "conversation-json", value: ConversationJSONTarget(service: model.service_host, id: model.conversation.id))
                             #else
-                            showing_json = true
+                            model.sheet = .conversation_json
                             #endif
                         }
                     } label: {
                         Label("Conversation actions", systemImage: "ellipsis.circle")
                     }
+                    .accessibilityLabel("Conversation actions")
                     .disabled(model.service_host.isEmpty || model.conversation.id.isEmpty)
                 }
             }
@@ -154,28 +133,91 @@ struct ChatView: View {
             #if os(macOS)
             switch CommandLine.arguments.dropFirst().first {
             case "--setup": open_window(id: "desktop-permissions")
-            case "--devices": showing_devices = true
-            case "--chatgpt": showing_chatgpt = true
+            case "--devices": model.sheet = .devices
+            case "--chatgpt": model.sheet = .chatgpt
             default: break
             }
             #endif
         }
-        #if !os(macOS)
-        .sheet(isPresented: $showing_json) {
-            ConversationJSONView(service: model.service_host, id: model.conversation.id)
+        .sheet(item: $model.sheet) { sheet in
+            switch sheet {
+            case .connection: ServiceConnectionView(model: model)
+            case .settings: ConversationSettingsView(model: model)
+            case .devices: DevicesView()
+            case .chatgpt:
+                if model.service_host.isEmpty { ServiceConnectionView(model: model) }
+                else { ChatGPTView(service: model.service_host) }
+            case .conversation_json:
+                ConversationJSONView(service: model.service_host, id: model.conversation.id)
+            }
         }
-        #endif
-        .sheet(isPresented: $showing_connection) {
-            ServiceConnectionView(model: model)
+    }
+
+    private var new_conversation_button: some View {
+        Button("New conversation", systemImage: "square.and.pencil") {
+            Task { await model.create() }
         }
-        .sheet(isPresented: $showing_settings) {
-            ConversationSettingsView(model: model)
+        .disabled(!model.initialized || model.service_host.isEmpty || model.creating)
+    }
+
+    private var settings_menu: some View {
+        Menu {
+            if !model.service_list.isEmpty {
+                Section("Service") {
+                    ForEach(model.service_list) { service in
+                        Button {
+                            Task { await model.perform(["action": "connect", "host": service.id]) }
+                        } label: {
+                            if service.id == model.service_host {
+                                Label(service.name, systemImage: "checkmark")
+                            } else {
+                                Text(service.name)
+                            }
+                        }
+                    }
+                }
+            }
+            Button("Connect to service…") { model.sheet = .connection }
+            Divider()
+            Button("Conversation settings…") { model.sheet = .settings }
+                .disabled(model.service_host.isEmpty)
+            Button("Devices…") { model.sheet = .devices }
+            Button("ChatGPT account…") { model.sheet = .chatgpt }
+                .disabled(model.service_host.isEmpty)
+        } label: {
+            Label("Settings", systemImage: "gearshape")
         }
-        .sheet(isPresented: $showing_devices) { DevicesView() }
-        .sheet(isPresented: $showing_chatgpt) {
-            if model.service_host.isEmpty { ServiceConnectionView(model: model) }
-            else { ChatGPTView(service: model.service_host) }
+        .accessibilityLabel("Settings")
+        .disabled(!model.initialized)
+    }
+
+    /// Shown in place of an empty transcript so a new conversation isn't a blank pane.
+    @ViewBuilder private var empty_state: some View {
+        if model.creating {
+            ProgressView("Creating conversation…")
+        } else if !model.conversation.id.isEmpty, model.conversation.entry_list.isEmpty,
+                  model.pending_entry == nil, !model.sending, !model.running {
+            VStack(spacing: 6) {
+                Text("New conversation").font(.headline)
+                Text(device_summary)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            .padding(24)
+            .frame(maxWidth: 420)
+            .allowsHitTesting(false)
         }
+    }
+
+    private var device_summary: String {
+        let names = model.enabled_device_list.map(\.name)
+        if model.device_list.isEmpty {
+            return "Agent can answer, but no devices are set up to run commands."
+        }
+        if names.isEmpty {
+            return "No devices are enabled, so Agent can answer but can't run commands. Choose a device above to enable it."
+        }
+        return "Agent can run commands on \(names.formatted(.list(type: .and)))."
     }
 
     private func computer_unavailable(_ device: Device) -> String? {
@@ -188,7 +230,7 @@ struct ChatView: View {
             Text(reason).foregroundStyle(.secondary).textSelection(.enabled)
             Spacer(minLength: 0)
             #if os(macOS)
-            Button("Desktop permissions…") { open_window(id: "desktop-permissions") }
+            Button("Desktop Permissions…") { open_window(id: "desktop-permissions") }
             #endif
         }
         .font(.caption)
