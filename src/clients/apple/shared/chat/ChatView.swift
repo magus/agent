@@ -5,6 +5,7 @@ struct ChatView: View {
     @State private var expanded_id_set: Set<String> = []
     @FocusState private var composer_focused: Bool
     @State private var composer_height: CGFloat = 46
+    @State private var search = ""
     #if os(macOS)
     @Environment(\.openWindow) private var open_window
     #endif
@@ -17,12 +18,17 @@ struct ChatView: View {
                     if let id { Task { await model.select(id) } }
                 }
             )) {
-                ForEach(model.conversation_list) { conversation in
+                ForEach(visible_conversations) { conversation in
                     NavigationLink(value: conversation.id) {
                         Text(conversation.title)
                     }
                 }
             }
+            #if os(macOS)
+            .searchable(text: $search, placement: .sidebar, prompt: "Search titles")
+            #else
+            .searchable(text: $search, prompt: "Search titles")
+            #endif
             .navigationTitle("Conversations")
             #if os(iOS)
             .toolbar {
@@ -143,6 +149,12 @@ struct ChatView: View {
                 ConversationJSONView(service: model.service_host, id: model.conversation.id)
             }
         }
+    }
+
+    private var visible_conversations: [ConversationRecord] {
+        let query = search.trimmingCharacters(in: .whitespaces)
+        guard !query.isEmpty else { return model.conversation_list }
+        return model.conversation_list.filter { $0.title.localizedStandardContains(query) }
     }
 
     private var conversation_title: String {
