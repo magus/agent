@@ -1,4 +1,5 @@
 import { imageUrlOptions } from './imageUrlOptions.js';
+import { keepLineBreaks } from './lineBreaks.js';
 import { createDomRenderer } from '@pierre/words/html';
 import { createHighlightsPlugin } from '@pierre/words/highlights';
 import { pierreDark, pierreLight } from '@pierre/highlights/themes';
@@ -37,7 +38,7 @@ window.render_message = (update) => {
     current_dark = update.dark;
     current_images = images;
   }
-  renderer.update(update.source, update.active, update.active, false);
+  renderer.update(keepLineBreaks(update.source), update.active, update.active, false);
 };
 
 let previous_height = 0;

@@ -1,4 +1,5 @@
 import { imageUrlOptions } from './imageUrlOptions.js';
+import { keepLineBreaks } from './lineBreaks.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -64,6 +65,29 @@ test('only embeds search images selected by the reply', () => {
     const html = renderer.render(reply, false).html;
     assert.ok(html.includes(`src="${image}"`));
     assert.doesNotMatch(html, /unused.jpg|tracker|javascript:/);
+  } finally {
+    renderer.dispose();
+  }
+});
+
+test('single newlines stay line breaks outside code, without changing block structure', () => {
+  const renderer = createHtmlRenderer({ controls: false, lineNumbers: false });
+  try {
+    const lines = renderer.render(keepLineBreaks('1\n2\n3'), false).html;
+    assert.equal((lines.match(/<br/g) ?? []).length, 2);
+
+    const fixture = readFileSync(new URL('./fixtures/markdown.md', import.meta.url), 'utf8');
+    const plain = renderer.render(fixture, false).html;
+    const kept = renderer.render(keepLineBreaks(fixture), false).html;
+    for (const tag of ['h1', 'ul', 'ol', 'blockquote', 'pre', 'table', 'th', 'td', 'li']) {
+      const count = (html) => (html.match(new RegExp(`<${tag}[ >]`, 'g')) ?? []).length;
+      assert.equal(count(kept), count(plain), tag);
+    }
+
+    const code = '```\nfirst\nsecond\n```';
+    assert.equal(keepLineBreaks(code), code);
+    assert.equal(keepLineBreaks('a  \nb'), 'a  \nb');
+    assert.equal(keepLineBreaks('a\n\nb'), 'a\n\nb');
   } finally {
     renderer.dispose();
   }
