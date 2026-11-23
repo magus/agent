@@ -165,6 +165,7 @@ struct ChatView: View {
         Button("New conversation", systemImage: "square.and.pencil") {
             Task { await model.create() }
         }
+        .help("New conversation")
         .disabled(!model.initialized || model.service_host.isEmpty || model.creating)
     }
 
@@ -205,6 +206,7 @@ struct ChatView: View {
             Label("Settings", systemImage: "gearshape")
         }
         .accessibilityLabel("Settings")
+        .help("Settings")
         .disabled(!model.initialized)
     }
 

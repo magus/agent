@@ -26,6 +26,9 @@ struct AgentCommands: Commands {
             Button("Desktop Permissions…") { open_window(id: "desktop-permissions") }
         }
         CommandGroup(after: .toolbar) {
+            Button("Stop Response") { Task { await model.perform(["action": "stop"]) } }
+                .keyboardShortcut(".")
+                .disabled(!model.running)
             Button("Conversation JSON") {
                 open_window(id: "conversation-json",
                             value: ConversationJSONTarget(service: model.service_host, id: model.conversation.id))

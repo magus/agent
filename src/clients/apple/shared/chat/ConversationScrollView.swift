@@ -61,6 +61,7 @@ struct ConversationScrollView<Content: View>: View {
                 .buttonBorderShape(.circle)
                 .background(.regularMaterial, in: Circle())
                 .accessibilityLabel("Latest message")
+                .help("Jump to latest message")
                 .padding(12)
             }
         }
