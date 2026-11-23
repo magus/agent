@@ -10,9 +10,9 @@ struct DevicesView: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section {
+                Section("This device") {
                     HStack {
-                        TextField("Device name", text: $model.name)
+                        TextField("Name", text: $model.name)
                         Button("Save") {
                             Task { await model.perform(["operation": "rename", "name": model.name]) }
                         }
@@ -95,10 +95,10 @@ struct DevicesView: View {
                         action("Request access", operation: "request_access", id: device.id)
                     }
                     if device.outgoing {
-                        action("Remove outgoing access", operation: "remove_target", id: device.id)
+                        action("Stop using this device", operation: "remove_target", id: device.id)
                     }
                     if device.incoming {
-                        action("Revoke incoming access", operation: "revoke_access", id: device.id)
+                        action("Revoke its access", operation: "revoke_access", id: device.id)
                     }
                     if device.blocked {
                         action("Allow new requests", operation: "allow_requests", id: device.id)
@@ -106,15 +106,23 @@ struct DevicesView: View {
                     Divider()
                     Text(device.address)
                     Text(device.id)
-                } label: { Label("Connection", systemImage: "ellipsis") }
-                .labelsHidden()
-                .accessibilityLabel("Connection for \(device.name)")
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .accessibilityLabel("Options for \(device.name)")
+                #if os(macOS)
                 .menuStyle(.borderlessButton)
+                #endif
                 .disabled(model.busy)
             }
-            HStack {
-                if device.outgoing { Label("Outgoing", systemImage: "arrow.up.right") }
-                if device.incoming { Label("Incoming", systemImage: "arrow.down.left") }
+            HStack(spacing: 12) {
+                if device.outgoing { Label("This device can use it", systemImage: "arrow.up.right") }
+                if device.incoming { Label("It can use this device", systemImage: "arrow.down.left") }
+                if !device.outgoing && !device.incoming && !device.pending {
+                    Text(device.discovered ? "No access. Request access from the options menu." : "No access")
+                }
             }.font(.caption).foregroundStyle(.secondary)
 
             if device.pending {

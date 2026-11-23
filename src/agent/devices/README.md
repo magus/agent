@@ -1,23 +1,24 @@
 # Direct device tools
 
-Open **Agent → Devices** on each Mac. The list includes known and discovered devices. Connection
-status appears beside each name. **Outgoing** controls access to that device. **Incoming** controls
-its access to the device running Agent. Choose **Request access**, then **Allow** on the receiving
+Open **Agent → Devices…** on each Mac, or **Devices…** in the settings (gear) menu. The list includes
+known and discovered devices, with connection status beside each name. Under each name, **This device
+can use it** means this device may run tools there; **It can use this device** means that device may
+run tools here. Choose **Request access** from a device's options menu, then **Allow** on the receiving
 device. Approval grants control in that direction only.
 
-**Remove** removes only the outgoing connection. **Revoke** removes only the incoming grant.
-It also prevents repeated requests from prompting again. To accept a new request after declining
-or revoking access, choose **Allow requests** in that device's Incoming column.
+**Stop using this device** removes only this device's access to it. **Revoke its access** removes only
+that device's access here. It also prevents repeated requests from prompting again. To accept a new
+request after declining or revoking access, choose **Allow new requests** from its options menu.
 This allows another request, not control of the Mac.
 
 The refresh icon scans for devices. **Add device** accepts an IP address or hostname, verifies the
 endpoint, and shows its name without granting access. A hostname can include a port, such as
 `joahs-mac-mini:47322` for the central service. Tailscale currently supplies discovery and address
 verification; execution devices use port 47321. Hostname lookup can use its device list when system DNS fails.
-Technical connection information is under **Connection details**.
+The options menu also shows the device's address and identity.
 
-The default device name is the macOS computer name. Saving a name sets an Agent-specific override.
-**Use system name** clears that override. Changing a name does not change identity or permissions.
+The default device name is the macOS computer name. Saving a name under **This device** sets an
+Agent-specific override. Changing a name does not change identity or permissions.
 
 Use **Pair manually** if discovery is unavailable. Copy an invitation from the target, paste it on
 the controller, and approve the request on the target. Invitations expire after 10 minutes.
