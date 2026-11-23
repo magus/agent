@@ -41,6 +41,9 @@ struct ChatView: View {
                                     Task { await model.toggle_device(device) }
                                 } label: {
                                     HStack(spacing: 4) {
+                                        if enabled {
+                                            Image(systemName: "checkmark").fontWeight(.semibold)
+                                        }
                                         Text(device.name)
                                         if computer_unavailable(device) != nil {
                                             Image(systemName: "exclamationmark.triangle.fill")
@@ -107,7 +110,10 @@ struct ChatView: View {
                 .overlay { empty_state }
                 composer
             }
-            .navigationTitle("")
+            .navigationTitle(conversation_title)
+            #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .primaryAction) { new_conversation_button }
                 ToolbarItem(placement: .primaryAction) { settings_menu }
@@ -152,6 +158,10 @@ struct ChatView: View {
                 ConversationJSONView(service: model.service_host, id: model.conversation.id)
             }
         }
+    }
+
+    private var conversation_title: String {
+        model.conversation_list.first { $0.id == model.conversation.id }?.title ?? ""
     }
 
     private var new_conversation_button: some View {
