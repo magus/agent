@@ -616,15 +616,27 @@ struct ResponsePreviewCleanup<'a>(&'a AgentLoop);
 
 impl Drop for ResponsePreviewCleanup<'_> {
     // A completed reply clears the preview first; anything left streamed before a stop or failure.
-    // Keep it visible instead of erasing text the user already read. It is not sent to the model.
+    // Keep it visible instead of erasing text the user already read, and mark a message that got no
+    // reply at all. Neither is sent to the model.
     fn drop(&mut self) {
         let stopped = self.0.stopped.load(Ordering::SeqCst);
-        let unfinished = self
+        let mut unfinished = self
             .0
             .response_preview
             .lock()
             .unwrap()
             .take_unfinished(stopped);
+        let awaiting_reply = self
+            .0
+            .conversation
+            .lock()
+            .unwrap()
+            .entry_list
+            .last()
+            .is_some_and(|entry| entry.role == "You");
+        if unfinished.is_empty() && awaiting_reply {
+            unfinished.push(ResponsePreview::unanswered(stopped));
+        }
         if !unfinished.is_empty()
             && let Err(error) = self.0.change(|conversation| {
                 conversation.entry_list.extend(unfinished);

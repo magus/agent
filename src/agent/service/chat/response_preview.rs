@@ -32,6 +32,12 @@ impl ResponsePreview {
             .map(|text| Entry::text("Agent", format!("{text}\n\n*{reason} before finishing.*")))
             .collect()
     }
+
+    /// Marks a message that got no reply at all, so it doesn't look ignored when scrolling back.
+    pub fn unanswered(stopped: bool) -> Entry {
+        let reason = if stopped { "Stopped" } else { "Interrupted" };
+        Entry::text("Agent", format!("*{reason} before replying.*"))
+    }
 }
 
 #[cfg(test)]
@@ -56,6 +62,15 @@ mod tests {
         let mut visible = history.clone();
         preview.append_to(&mut visible);
         assert_eq!(visible.len(), 1);
+    }
+
+    #[test]
+    fn unanswered_messages_say_why() {
+        assert_eq!(
+            ResponsePreview::unanswered(true).text,
+            "*Stopped before replying.*"
+        );
+        assert_eq!(ResponsePreview::unanswered(false).role, "Agent");
     }
 
     #[test]
