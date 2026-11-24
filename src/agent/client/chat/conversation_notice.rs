@@ -1,4 +1,8 @@
 pub(crate) fn conversation_notice(status: &str) -> String {
+    // No service chosen yet is not a failure; the app's empty state offers Connect to service.
+    if status == "Disconnected. Choose a paired central service." {
+        return String::new();
+    }
     if let Some(detail) = status.strip_prefix("Disconnected. ") {
         return format!(
             "Can't reach the Agent service. Check that it's running and that this device is on \
@@ -43,6 +47,10 @@ mod tests {
             conversation_notice("Disconnected. Connection refused"),
             "Can't reach the Agent service. Check that it's running and that this device is on \
              Tailscale. (Connection refused)"
+        );
+        assert_eq!(
+            conversation_notice("Disconnected. Choose a paired central service."),
+            ""
         );
         assert_eq!(
             conversation_notice("Sign in with ChatGPT first."),
