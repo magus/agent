@@ -7,6 +7,7 @@ struct DesktopPermissionsView: View {
     @State private var capturing = false
     @State private var capture_task: Task<Void, Never>?
     @State private var error: String?
+    @State private var checked = false
     private let setup = DesktopSetup()
 
     var body: some View {
@@ -50,6 +51,12 @@ struct DesktopPermissionsView: View {
             }
             .disabled(!permissions.granted || capturing)
 
+            // macOS applies new privacy grants to a running app only after it relaunches.
+            if checked && !permissions.granted {
+                Text("After turning on Agent in System Settings, quit and reopen Agent.")
+                    .foregroundStyle(.secondary)
+            }
+
             if capturing { ProgressView() }
             if let error { Text(error).foregroundStyle(.red).textSelection(.enabled) }
             if let preview_path { ScreenshotView(path: preview_path) }
@@ -60,6 +67,7 @@ struct DesktopPermissionsView: View {
             while !Task.isCancelled {
                 do {
                     permissions = try await setup.permissions()
+                    checked = true
                     try await Task.sleep(for: .seconds(2))
                 } catch is CancellationError { return }
                 catch {
