@@ -12,6 +12,8 @@ enum ChatSheet: String, Identifiable {
 @MainActor @Observable
 final class ChatModel {
     var sheet: ChatSheet?
+    /// Set by the Mac Find command; the chat view moves focus to the title search and clears it.
+    var find_requested = false
     private(set) var creating = false
     var conversation = Conversation()
     var conversation_list: [ConversationRecord] = []

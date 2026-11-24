@@ -6,6 +6,7 @@ struct ChatView: View {
     @FocusState private var composer_focused: Bool
     @State private var composer_height: CGFloat = 46
     @State private var search = ""
+    @FocusState private var search_focused: Bool
     #if os(macOS)
     @Environment(\.openWindow) private var open_window
     #endif
@@ -26,6 +27,12 @@ struct ChatView: View {
             }
             #if os(macOS)
             .searchable(text: $search, placement: .sidebar, prompt: "Search titles")
+            .searchFocused($search_focused)
+            .onChange(of: model.find_requested) { _, requested in
+                guard requested else { return }
+                search_focused = true
+                model.find_requested = false
+            }
             #else
             .searchable(text: $search, prompt: "Search titles")
             #endif

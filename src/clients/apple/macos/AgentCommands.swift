@@ -15,6 +15,10 @@ struct AgentCommands: Commands {
                 .keyboardShortcut("n")
                 .disabled(!model.initialized || model.service_host.isEmpty || model.creating)
         }
+        CommandGroup(after: .textEditing) {
+            Button("Find…") { model.find_requested = true }
+                .keyboardShortcut("f")
+        }
         CommandGroup(replacing: .appSettings) {
             Button("Conversation Settings…") { model.sheet = .settings }
                 .keyboardShortcut(",")
