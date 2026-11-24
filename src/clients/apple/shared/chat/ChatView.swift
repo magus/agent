@@ -119,6 +119,12 @@ struct ChatView: View {
             .navigationTitle(conversation_title)
             #if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+            // A new conversation opens ready to type. The Mac composer takes any typed key already.
+            .onChange(of: model.creating) { was_creating, creating in
+                if was_creating && !creating && model.conversation.entry_list.isEmpty && model.error == nil {
+                    composer_focused = true
+                }
+            }
             #endif
             .toolbar {
                 ToolbarItem(placement: .primaryAction) { new_conversation_button }
