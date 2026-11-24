@@ -320,6 +320,8 @@ struct ChatView: View {
         }
         .font(.caption)
         .padding(.horizontal)
+        .frame(maxWidth: 900)
+        .frame(maxWidth: .infinity)
         .padding(.bottom, 8)
     }
 
