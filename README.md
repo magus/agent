@@ -68,7 +68,8 @@ conversations started from this device. Automatic reasoning uses the model’s d
 
 Typing from non-text controls focuses the composer. Conversation text can be selected and copied. Shift+Esc focuses the composer.
 Enter sends a message. Shift+Enter adds a newline. With an empty textbox during a task,
-the send icon becomes Stop. Closing the app does not stop a task. After an interruption,
+the send icon becomes Stop. On the Mac, ⌘. also stops the reply and ⌘F searches conversation titles.
+Closing the app does not stop a task. After an interruption,
 **Retrieve results** reads the original requests without repeating them.
 
 ## source
