@@ -5,7 +5,6 @@ struct Conversation: Decodable, Equatable {
     var model = ""
     var reasoning_effort: String?
     var entry_list: [Entry] = []
-    var status = ""
 
     var has_pending_tools: Bool {
         entry_list.contains { $0.request?.finished == false }
