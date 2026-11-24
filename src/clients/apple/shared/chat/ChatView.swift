@@ -209,7 +209,13 @@ struct ChatView: View {
             }
             .disabled(model.service_host.isEmpty || model.conversation.id.isEmpty)
         } label: {
-            Label("Settings", systemImage: "gearshape")
+            // macOS toolbar menus can take their accessibility name from the symbol ("gearshape")
+            // after a redraw, so the icon itself carries the name.
+            Label {
+                Text("Settings")
+            } icon: {
+                Image(systemName: "gearshape").accessibilityLabel("Settings")
+            }
         }
         .accessibilityLabel("Settings")
         .help("Settings")
