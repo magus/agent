@@ -35,6 +35,9 @@ struct AgentCommands: Commands {
             Divider()
             Button("Desktop Permissions…") { open_window(id: "desktop-permissions") }
         }
+        // Agent ships no help book, so the default "Agent Help" item only showed "Help isn't
+        // available". The Help menu keeps the system's menu search.
+        CommandGroup(replacing: .help) {}
         CommandGroup(after: .toolbar) {
             Button("Stop Response") { Task { await model.perform(["action": "stop"]) } }
                 .keyboardShortcut(".")
