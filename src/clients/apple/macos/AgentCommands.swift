@@ -8,7 +8,10 @@ struct AgentCommands: Commands {
     var body: some Commands {
         // The chat window shares one model, so a second window would only mirror the first.
         CommandGroup(replacing: .newItem) {
-            Button("New Conversation") { Task { await model.create() } }
+            Button("New Conversation") {
+                open_window(id: "chat")
+                Task { await model.create() }
+            }
                 .keyboardShortcut("n")
                 .disabled(!model.initialized || model.service_host.isEmpty || model.creating)
         }

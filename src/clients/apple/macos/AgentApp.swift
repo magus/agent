@@ -5,7 +5,9 @@ struct AgentApp: App {
     @State private var model = ChatModel()
 
     var body: some Scene {
-        WindowGroup {
+        // One chat window: every window would share the same model. As a single Window scene it
+        // appears in the Window menu and reopens after being closed.
+        Window("Agent", id: "chat") {
             ChatView(model: model)
                 .frame(minWidth: 720, minHeight: 500)
         }
