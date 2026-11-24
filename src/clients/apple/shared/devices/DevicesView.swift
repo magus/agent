@@ -5,6 +5,7 @@ struct DevicesView: View {
     @State private var host = ""
     @State private var invitation = ""
     @State private var showing_manual = false
+    @State private var removal: DeviceRemoval?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -65,6 +66,19 @@ struct DevicesView: View {
             }
             .formStyle(.grouped)
             .navigationTitle("Devices")
+            // Removing access can only be undone by pairing again, so it asks first.
+            .confirmationDialog(
+                removal?.title ?? "",
+                isPresented: Binding(get: { removal != nil }, set: { if !$0 { removal = nil } }),
+                titleVisibility: .visible,
+                presenting: removal
+            ) { removal in
+                Button(removal.button, role: .destructive) {
+                    Task { await model.perform(["operation": removal.operation, "id": removal.id]) }
+                }
+            } message: { removal in
+                Text(removal.message)
+            }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -95,10 +109,22 @@ struct DevicesView: View {
                         action("Request access", operation: "request_access", id: device.id)
                     }
                     if device.outgoing {
-                        action("Stop using this device", operation: "remove_target", id: device.id)
+                        Button("Stop using this device") {
+                            removal = DeviceRemoval(
+                                id: device.id, operation: "remove_target",
+                                title: "Stop using \(device.name)?", button: "Stop using",
+                                message: "This device can't use \(device.name) until you pair them again."
+                            )
+                        }
                     }
                     if device.incoming {
-                        action("Revoke its access", operation: "revoke_access", id: device.id)
+                        Button("Revoke its access") {
+                            removal = DeviceRemoval(
+                                id: device.id, operation: "revoke_access",
+                                title: "Revoke access for \(device.name)?", button: "Revoke access",
+                                message: "\(device.name) can't use this device until you pair them again."
+                            )
+                        }
                     }
                     if device.blocked {
                         action("Allow new requests", operation: "allow_requests", id: device.id)
@@ -141,4 +167,12 @@ struct DevicesView: View {
             Task { await model.perform(["operation": operation, "id": id]) }
         }
     }
+}
+
+private struct DeviceRemoval {
+    let id: String
+    let operation: String
+    let title: String
+    let button: String
+    let message: String
 }
