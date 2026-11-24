@@ -9,8 +9,10 @@ const code_by_mode = {
   light: createHighlightsPlugin({ theme: pierreLight }),
   dark: createHighlightsPlugin({ theme: pierreDark }),
 };
+// Code blocks get a Copy button; downloads make no sense inside a chat message.
+const controls = { code: { copy: true, download: false } };
 const renderer = createDomRenderer(root, {
-  controls: false,
+  controls,
   lineNumbers: false,
   disallowedElements: ['img'],
 });
@@ -30,7 +32,7 @@ window.render_message = (update) => {
   if (current_dark !== update.dark || current_images !== images) {
     if (current_images !== images) renderer.update('', false, false, false);
     renderer.configure({
-      controls: false,
+      controls,
       lineNumbers: false,
       ...imageUrlOptions(update.image_urls ?? []),
       plugins: { code: update.dark ? code_by_mode.dark : code_by_mode.light },

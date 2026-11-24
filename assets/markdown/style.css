@@ -19,7 +19,11 @@ table { display: block; overflow-x: auto; border-collapse: collapse; }
 th, td { padding: 0.4em 0.7em; border: 1px solid GrayText; text-align: start; }
 hr { border: 0; border-top: 1px solid GrayText; }
 
-[data-markdown="code-header"] { display: none; }
+[data-markdown="code-block"] { margin-block: 0.75em; border-radius: 8px; overflow: hidden; background: light-dark(#f0f0f0, #262626); }
+[data-markdown="code-block"] pre { margin: 0; border-radius: 0; }
+[data-markdown="code-header"] { display: flex; justify-content: space-between; align-items: center; padding: 0.35em 0.85em 0; font-size: 0.8em; color: GrayText; }
+[data-markdown="code-header"] button { appearance: none; border: 0; background: none; padding: 0.2em 0; font: inherit; color: LinkText; cursor: pointer; }
+.document-view [data-markdown="code-header"] { display: none; }
 
 .document-view body { overflow: visible; }
 .document-view pre { overflow: visible; width: max-content; min-width: 100%; box-sizing: border-box; font-size: 1rem; }
