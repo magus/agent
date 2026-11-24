@@ -181,7 +181,8 @@ struct ChatView: View {
                     .font(.caption)
                     .padding(.horizontal, 10).padding(.vertical, 6)
                     .background(.quaternary, in: Capsule())
-                    .opacity(enabled ? 1 : 0.4)
+                    // Dimmed but readable: the checkmark shows state, and an off chip is still a control.
+                .opacity(enabled ? 1 : 0.6)
                 }
                 .buttonStyle(.plain)
                 .disabled(model.saving_devices || model.conversation.id.isEmpty)
