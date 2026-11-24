@@ -15,7 +15,10 @@ struct ChatGPTView: View {
                         ProgressView().controlSize(.small).frame(minHeight: 22)
                     } else if let account = model.account {
                         LabeledContent("Signed in as") {
+                            // An address must not wrap: iOS hyphenates it at large text sizes
+                            // ("name@domain.-com"), which reads as a different address.
                             Text(account).textSelection(.enabled)
+                                .lineLimit(1).minimumScaleFactor(0.5)
                         }
                         Button("Check connection") {
                             Task { await model.perform("check_model", service: service) }
