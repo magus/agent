@@ -69,7 +69,9 @@ struct ChatView: View {
                         device_chips
                         ScrollView(.horizontal) { device_chips }
                     }
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    // Starts where the conversation column starts, like the composer below.
+                    .frame(maxWidth: 900, alignment: .leading)
+                    .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
                 }
                 if let reason = model.local_computer_unavailable,
