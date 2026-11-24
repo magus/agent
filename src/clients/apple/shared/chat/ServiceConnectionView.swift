@@ -14,12 +14,23 @@ struct ServiceConnectionView: View {
                 if !model.service_list.isEmpty {
                     Section("Services") {
                         ForEach(model.service_list) { service in
-                            Button(service.name) {
+                            let connected = model.service_host == service.id
+                            Button {
                                 Task {
                                     await model.perform(["action": "connect", "host": service.id])
                                     if model.service_host == service.id { dismiss() }
                                 }
+                            } label: {
+                                HStack {
+                                    Text(service.name)
+                                    Spacer()
+                                    if connected {
+                                        Image(systemName: "checkmark").fontWeight(.semibold)
+                                    }
+                                }
+                                .contentShape(Rectangle())
                             }
+                            .accessibilityAddTraits(connected ? .isSelected : [])
                         }
                     }
                 }
