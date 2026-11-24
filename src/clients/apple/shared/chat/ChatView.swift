@@ -405,6 +405,9 @@ struct ChatView: View {
             .padding(14)
             .background(.background.secondary, in: RoundedRectangle(cornerRadius: 24))
         }
+        // Same width as the conversation column, so wide windows don't stretch the composer.
+        .frame(maxWidth: 900)
+        .frame(maxWidth: .infinity)
         .padding(16)
     }
 }
