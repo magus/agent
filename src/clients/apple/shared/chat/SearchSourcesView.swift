@@ -32,7 +32,7 @@ struct SearchSourcesView: View {
                         if groups.isEmpty {
                             Text(running ? "Waiting for sources…" : "No source URLs recorded.")
                         } else {
-                            DisclosureGroup("\(groups.count) sites", content: {
+                            DisclosureGroup(groups.count == 1 ? "1 site" : "\(groups.count) sites", content: {
                                 ForEach(groups.keys.sorted(), id: \.self) { domain in
                                     if let links = groups[domain] {
                                         DisclosureGroup {
