@@ -7,12 +7,13 @@ struct ChatView: View {
     @State private var composer_height: CGFloat = 46
     @State private var search = ""
     @FocusState private var search_focused: Bool
+    @State private var column_visibility = NavigationSplitViewVisibility.automatic
     #if os(macOS)
     @Environment(\.openWindow) private var open_window
     #endif
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $column_visibility) {
             List(selection: Binding(
                 get: { Optional(model.conversation.id) },
                 set: { id in
@@ -35,8 +36,17 @@ struct ChatView: View {
             .searchFocused($search_focused)
             .onChange(of: model.find_requested) { _, requested in
                 guard requested else { return }
-                search_focused = true
                 model.find_requested = false
+                // Show a hidden sidebar first; the field can take focus once it is on screen.
+                if column_visibility == .detailOnly {
+                    column_visibility = .all
+                    Task {
+                        try? await Task.sleep(for: .milliseconds(300))
+                        search_focused = true
+                    }
+                } else {
+                    search_focused = true
+                }
             }
             #else
             .searchable(text: $search, prompt: "Search titles")
