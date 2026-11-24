@@ -14,6 +14,8 @@ struct ConversationScrollView<Content: View>: View {
             content()
         }
         .scrollPosition($position)
+        // Dragging the conversation down lowers the iPhone keyboard, as in Messages.
+        .scrollDismissesKeyboard(.interactively)
         .defaultScrollAnchor(.bottom, for: .initialOffset)
         .defaultScrollAnchor(.top, for: .alignment)
         .defaultScrollAnchor(following ? .bottom : nil, for: .sizeChanges)
