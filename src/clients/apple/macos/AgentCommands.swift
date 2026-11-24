@@ -23,14 +23,14 @@ struct AgentCommands: Commands {
                 .keyboardShortcut("f")
         }
         CommandGroup(replacing: .appSettings) {
-            Button("Conversation Settings…") { model.sheet = .settings }
+            Button("Conversation Settings…") { show(.settings) }
                 .keyboardShortcut(",")
                 .disabled(model.service_host.isEmpty)
-            Button("Devices…") { model.sheet = .devices }
+            Button("Devices…") { show(.devices) }
                 .disabled(!model.initialized)
-            Button("ChatGPT Account…") { model.sheet = .chatgpt }
+            Button("ChatGPT Account…") { show(.chatgpt) }
                 .disabled(model.service_host.isEmpty)
-            Button("Connect to Service…") { model.sheet = .connection }
+            Button("Connect to Service…") { show(.connection) }
                 .disabled(!model.initialized)
             Divider()
             Button("Desktop Permissions…") { open_window(id: "desktop-permissions") }
@@ -46,6 +46,12 @@ struct AgentCommands: Commands {
             .keyboardShortcut("j", modifiers: [.command, .option])
             .disabled(model.service_host.isEmpty || model.conversation.id.isEmpty)
         }
+    }
+
+    /// Sheets belong to the chat window, so a closed window opens first.
+    private func show(_ sheet: ChatSheet) {
+        open_window(id: "chat")
+        model.sheet = sheet
     }
 }
 #endif
