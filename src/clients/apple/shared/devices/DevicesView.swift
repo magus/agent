@@ -99,10 +99,19 @@ struct DevicesView: View {
     private func connection(_ device: DeviceConnection) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text(device.name)
-                Spacer()
-                if device.outgoing {
-                    Text(device.status).font(.caption).foregroundStyle(.secondary)
+                // Name and status side by side when they fit; at large text sizes the status moves
+                // under the name instead of being hyphenated beside it.
+                ViewThatFits(in: .horizontal) {
+                    HStack {
+                        Text(device.name).fixedSize()
+                        Spacer()
+                        if device.outgoing { status(device) }
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(device.name)
+                        if device.outgoing { status(device) }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 Menu {
                     if device.discovered && !device.outgoing {
@@ -160,6 +169,10 @@ struct DevicesView: View {
                 }.disabled(model.busy)
             }
         }
+    }
+
+    private func status(_ device: DeviceConnection) -> some View {
+        Text(device.status).font(.caption).foregroundStyle(.secondary).fixedSize()
     }
 
     private func action(_ title: String, operation: String, id: String) -> some View {
