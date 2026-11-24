@@ -32,8 +32,9 @@ struct ChatView: View {
             .navigationTitle("Conversations")
             #if os(iOS)
             .toolbar {
-                ToolbarItem(placement: .primaryAction) { settings_menu }
+                // Same order as the conversation's toolbar, so each button stays in place.
                 ToolbarItem(placement: .primaryAction) { new_conversation_button }
+                ToolbarItem(placement: .primaryAction) { settings_menu }
             }
             #endif
         } detail: {
