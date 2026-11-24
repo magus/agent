@@ -118,7 +118,8 @@ struct ChatView: View {
                 }
                 .id(model.service_host + "/" + model.conversation.id)
                 .overlay { empty_state }
-                composer
+                // Nothing can be sent before a service is connected; the empty state offers Connect.
+                if !model.service_host.isEmpty { composer }
             }
             .navigationTitle(conversation_title)
             #if os(iOS)
