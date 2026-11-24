@@ -36,6 +36,9 @@ struct ChatView: View {
                 ToolbarItem(placement: .primaryAction) { new_conversation_button }
                 ToolbarItem(placement: .primaryAction) { settings_menu }
             }
+            #else
+            // Wide enough that typical titles aren't cut to "Conversation 0…".
+            .navigationSplitViewColumnWidth(min: 200, ideal: 260, max: 400)
             #endif
         } detail: {
             VStack(spacing: 0) {
