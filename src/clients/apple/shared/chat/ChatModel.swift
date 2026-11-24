@@ -37,6 +37,8 @@ final class ChatModel {
     var running = false
     var sending = false
     var error: String?
+    /// The error the last failed refresh showed; a later successful refresh clears it if still shown.
+    private var refresh_error: String?
     private(set) var initialized = false
     var notice = ""
     private(set) var pending: PendingMessage?
@@ -150,8 +152,13 @@ final class ChatModel {
             if selected_model.isEmpty && !conversation.id.isEmpty && conversation.model.isEmpty {
                 selected_model = model_option_list.first?.model ?? ""
             }
+            if refresh_error != nil {
+                if error == refresh_error { error = nil }
+                refresh_error = nil
+            }
         } catch {
             self.error = error.localizedDescription
+            refresh_error = self.error
         }
     }
 
