@@ -24,7 +24,7 @@ struct ConversationSettingsView: View {
                         }
                     }
 
-                    Picker("Reasoning", selection: Binding(
+                    Picker("Reasoning effort", selection: Binding(
                         get: { settings.reasoning_effort ?? "" },
                         set: { settings.reasoning_effort = $0.isEmpty ? nil : $0 }
                     )) {
