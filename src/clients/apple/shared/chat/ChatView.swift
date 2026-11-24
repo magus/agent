@@ -25,6 +25,11 @@ struct ChatView: View {
                     }
                 }
             }
+            .overlay {
+                if !search.isEmpty && visible_conversations.isEmpty {
+                    ContentUnavailableView.search(text: search)
+                }
+            }
             #if os(macOS)
             .searchable(text: $search, placement: .sidebar, prompt: "Search titles")
             .searchFocused($search_focused)
