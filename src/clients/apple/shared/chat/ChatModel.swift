@@ -102,7 +102,10 @@ final class ChatModel {
         defer { poll_task = nil }
 
         while !Task.isCancelled {
-            do { try await Task.sleep(for: .milliseconds(250)) }
+            // Fast while a reply or delivery is in flight; otherwise only changes from other
+            // devices arrive this way (actions refresh at once), so idle polling can be slower.
+            let busy = running || sending || pending != nil || creating
+            do { try await Task.sleep(for: .milliseconds(busy ? 250 : 1000)) }
             catch { return }
             await refresh()
         }
