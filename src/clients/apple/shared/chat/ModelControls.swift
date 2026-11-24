@@ -95,7 +95,8 @@ struct ModelControls: View {
 
     private var combined_menu: some View {
         Menu {
-            // Inline pickers in a menu show their titles as section headers.
+            // iOS separates the two inline pickers with a divider but shows no section titles;
+            // model names and effort levels are distinct enough without them.
             model_picker.pickerStyle(.inline)
             Picker("Reasoning effort", selection: effort_selection) { effort_options }
                 .pickerStyle(.inline)
