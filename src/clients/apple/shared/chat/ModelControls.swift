@@ -15,15 +15,14 @@ struct ModelControls: View {
             effort_picker.fixedSize()
         }
         #else
+        // Two menus when they fit; at large text sizes one menu, so the pickers take one row
+        // instead of two above the composer.
         ViewThatFits(in: .horizontal) {
             HStack(spacing: 16) {
                 model_menu
                 effort_menu
             }
-            VStack(alignment: .trailing, spacing: 8) {
-                model_menu
-                effort_menu
-            }
+            combined_menu
         }
         .frame(maxWidth: .infinity, alignment: .trailing)
         #endif
@@ -41,18 +40,23 @@ struct ModelControls: View {
     }
 
     private var effort_picker: some View {
-        Picker(selection: Binding(
-            get: { model.selected_effort },
-            set: { model.choose_effort($0) }
-        )) {
-            Text("Automatic").tag("")
-            ForEach(effort_list, id: \.self) { effort in
-                Text(effort.capitalized).tag(effort)
-            }
+        Picker(selection: effort_selection) {
+            effort_options
         } label: {
             Image(systemName: "cellularbars")
         }
         .accessibilityLabel("Reasoning effort")
+    }
+
+    private var effort_selection: Binding<String> {
+        Binding(get: { model.selected_effort }, set: { model.choose_effort($0) })
+    }
+
+    @ViewBuilder private var effort_options: some View {
+        Text("Automatic").tag("")
+        ForEach(effort_list, id: \.self) { effort in
+            Text(effort.capitalized).tag(effort)
+        }
     }
 
     private var effort_list: [String] {
@@ -80,13 +84,35 @@ struct ModelControls: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: "cellularbars")
-                Text(model.selected_effort.isEmpty ? "Automatic" : model.selected_effort.capitalized)
+                Text(effort_name)
                 Image(systemName: "chevron.down").font(.caption)
             }
             .fixedSize()
         }
         .accessibilityLabel("Reasoning effort")
-        .accessibilityValue(model.selected_effort.isEmpty ? "Automatic" : model.selected_effort)
+        .accessibilityValue(effort_name)
+    }
+
+    private var combined_menu: some View {
+        Menu {
+            // Inline pickers in a menu show their titles as section headers.
+            model_picker.pickerStyle(.inline)
+            Picker("Reasoning effort", selection: effort_selection) { effort_options }
+                .pickerStyle(.inline)
+        } label: {
+            HStack(spacing: 6) {
+                Text("\(model.selected_model) · \(effort_name)").multilineTextAlignment(.trailing)
+                Image(systemName: "chevron.down").font(.caption)
+            }
+        }
+        // Keep Model above Reasoning effort even when the menu opens upward from the composer.
+        .menuOrder(.fixed)
+        .accessibilityLabel("Model and reasoning effort")
+        .accessibilityValue("\(model.selected_model), \(effort_name)")
+    }
+
+    private var effort_name: String {
+        model.selected_effort.isEmpty ? "Automatic" : model.selected_effort.capitalized
     }
     #endif
 }
