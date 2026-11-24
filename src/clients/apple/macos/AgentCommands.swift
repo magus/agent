@@ -16,7 +16,10 @@ struct AgentCommands: Commands {
                 .disabled(!model.initialized || model.service_host.isEmpty || model.creating)
         }
         CommandGroup(after: .textEditing) {
-            Button("Find…") { model.find_requested = true }
+            Button("Find…") {
+                open_window(id: "chat")
+                model.find_request += 1
+            }
                 .keyboardShortcut("f")
         }
         CommandGroup(replacing: .appSettings) {

@@ -34,9 +34,7 @@ struct ChatView: View {
             #if os(macOS)
             .searchable(text: $search, placement: .sidebar, prompt: "Search titles")
             .searchFocused($search_focused)
-            .onChange(of: model.find_requested) { _, requested in
-                guard requested else { return }
-                model.find_requested = false
+            .onChange(of: model.find_request) {
                 // Show a hidden sidebar first; the field can take focus once it is on screen.
                 if column_visibility == .detailOnly {
                     column_visibility = .all

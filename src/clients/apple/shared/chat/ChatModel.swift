@@ -12,8 +12,9 @@ enum ChatSheet: String, Identifiable {
 @MainActor @Observable
 final class ChatModel {
     var sheet: ChatSheet?
-    /// Set by the Mac Find command; the chat view moves focus to the title search and clears it.
-    var find_requested = false
+    /// Bumped by the Mac Find command; each change moves focus to the title search. A count, not a
+    /// flag, so a request made while the window is closed can't leave it stuck.
+    var find_request = 0
     private(set) var creating = false
     var conversation = Conversation()
     var conversation_list: [ConversationRecord] = []
