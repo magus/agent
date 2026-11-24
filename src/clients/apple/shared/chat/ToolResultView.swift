@@ -9,9 +9,21 @@ struct ToolResultView: View {
     var body: some View {
         DisclosureGroup(isExpanded: $expanded) {
             VStack(alignment: .leading, spacing: 12) {
-                Text(request.tool.formatted)
-                    .font(.system(.caption, design: .monospaced))
-                    .textSelection(.enabled)
+                if let command = request.tool["command"]?.string {
+                    // The result text starts with the full command; until it arrives, show the command.
+                    if entry.text.isEmpty {
+                        Text(command)
+                            .font(.system(.callout, design: .monospaced))
+                            .textSelection(.enabled)
+                    }
+                    if let directory = request.tool["cwd"]?.string, !directory.isEmpty {
+                        Text("Ran in \(directory)").font(.caption).textSelection(.enabled)
+                    }
+                } else {
+                    Text(request.tool.formatted)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                }
 
                 if is_computer {
                     if let outcome = computer_outcome {
