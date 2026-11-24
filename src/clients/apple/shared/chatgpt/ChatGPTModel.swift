@@ -97,7 +97,7 @@ final class ChatGPTModel {
                 ["action": "account", "service": service, "operation": operation],
                 as: AccountResult.self
             )
-            message = operation == "check_model" ? "Connected" : nil
+            message = operation == "check_model" ? "ChatGPT is working. A test request just succeeded." : nil
             await load(service: service)
         } catch { self.error = error.localizedDescription }
     }
