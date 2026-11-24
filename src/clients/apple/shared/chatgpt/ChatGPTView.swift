@@ -4,6 +4,7 @@ struct ChatGPTView: View {
     let service: String
     @State private var model = ChatGPTModel()
     @State private var hovering = false
+    @State private var confirming_sign_out = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -20,9 +21,20 @@ struct ChatGPTView: View {
                             Task { await model.perform("check_model", service: service) }
                         }.disabled(model.pending || model.busy)
                         login_button("Sign in with another account")
-                        Button("Sign out", role: .destructive) {
-                            Task { await model.perform("sign_out", service: service) }
-                        }.disabled(model.pending || model.busy)
+                        // Signing out affects every device on this service, so it asks first.
+                        Button("Sign out", role: .destructive) { confirming_sign_out = true }
+                            .disabled(model.pending || model.busy)
+                            .confirmationDialog(
+                                "Sign out of ChatGPT?",
+                                isPresented: $confirming_sign_out,
+                                titleVisibility: .visible
+                            ) {
+                                Button("Sign out", role: .destructive) {
+                                    Task { await model.perform("sign_out", service: service) }
+                                }
+                            } message: {
+                                Text("Agent stops answering on every device paired with this service until someone signs in again.")
+                            }
                     } else {
                         Text("Sign in once. Every device paired with this service uses the same account.")
                             .foregroundStyle(.secondary)
