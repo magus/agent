@@ -52,7 +52,6 @@ struct Snapshot: Decodable {
     let conversation_list: [ConversationRecord]
     let service_list: [Device]
     let service_host: String
-    let service_name: String
     let running: Bool
     let target_list: [Device]
     let available_target_list: [Device]

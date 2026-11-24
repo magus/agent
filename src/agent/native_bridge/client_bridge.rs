@@ -85,7 +85,6 @@ fn dispatch(request: Request) -> io::Result<Value> {
             "notice": conversation_notice(&chat.view().status),
             "conversation_list": chat.conversation_list(),
             "service_list": chat.service_list(),
-            "service_name": chat.service_name(),
             "service_host": chat.service_host().unwrap_or_default(),
             "running": chat.running(),
             "revision": chat.revision(),

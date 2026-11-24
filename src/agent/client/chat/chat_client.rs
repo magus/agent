@@ -82,17 +82,6 @@ impl ChatClient {
         self.refresh()
     }
 
-    pub fn service_name(&self) -> String {
-        let host = self.selection.lock().unwrap().host.clone();
-        self.service_list
-            .lock()
-            .unwrap()
-            .iter()
-            .find(|service| service.id == host)
-            .map(|service| service.name.clone())
-            .unwrap_or_else(|| "Choose service".into())
-    }
-
     pub fn conversation_list(&self) -> Vec<ConversationRecord> {
         self.cached.lock().unwrap().conversation_list.clone()
     }

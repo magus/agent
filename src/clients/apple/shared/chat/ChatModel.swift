@@ -28,7 +28,6 @@ final class ChatModel {
     var local_computer_unavailable: String?
     var saving_devices = false
     var service_host = ""
-    var service_name = ""
     var draft = "" {
         didSet { drafts.write(draft, key: draft_key) }
     }
@@ -120,7 +119,6 @@ final class ChatModel {
             }
             service_list = snapshot.service_list
             service_host = snapshot.service_host
-            service_name = snapshot.service_name
             running = snapshot.running
             enabled_device_list = snapshot.target_list
             device_list = snapshot.available_target_list
