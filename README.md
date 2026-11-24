@@ -66,7 +66,7 @@ Chat works from any connected device, even when no devices are enabled for tools
 **Conversation settings…** in the settings (gear) menu (⌘, on the Mac) sets the model, reasoning level, and enabled devices for new
 conversations started from this device. Automatic reasoning uses the model’s default. Existing conversations are unchanged.
 
-Typing from non-text controls focuses the composer. Conversation text can be selected and copied. Shift+Esc focuses the composer.
+Typing from non-text controls focuses the composer. Conversation text can be selected and copied, and code blocks have a Copy button. Shift+Esc focuses the composer.
 Enter sends a message. Shift+Enter adds a newline. With an empty textbox during a task,
 the send icon becomes Stop. On the Mac, ⌘. also stops the reply and ⌘F searches conversation titles.
 Closing the app does not stop a task. After an interruption,
