@@ -43,36 +43,14 @@ struct ChatView: View {
         } detail: {
             VStack(spacing: 0) {
                 if !model.device_list.isEmpty {
-                    ScrollView(.horizontal) {
-                        HStack {
-                            ForEach(model.device_list) { device in
-                                let enabled = model.enabled_device_list.contains(device)
-                                Button {
-                                    Task { await model.toggle_device(device) }
-                                } label: {
-                                    HStack(spacing: 4) {
-                                        if enabled {
-                                            Image(systemName: "checkmark").fontWeight(.semibold)
-                                        }
-                                        Text(device.name)
-                                        if computer_unavailable(device) != nil {
-                                            Image(systemName: "exclamationmark.triangle.fill")
-                                                .foregroundStyle(.orange)
-                                        }
-                                    }
-                                    .font(.caption)
-                                    .padding(.horizontal, 10).padding(.vertical, 6)
-                                    .background(.quaternary, in: Capsule())
-                                    .opacity(enabled ? 1 : 0.4)
-                                }
-                                .buttonStyle(.plain)
-                                .disabled(model.saving_devices || model.conversation.id.isEmpty)
-                                .accessibilityValue(enabled ? "Enabled" : "Disabled")
-                                .accessibilityHint(computer_unavailable(device) ?? "")
-                                .help(computer_unavailable(device) ?? "")
-                            }
-                        }.padding(.horizontal)
-                    }.padding(.vertical, 8)
+                    // A plain row when the chips fit; a scroll view only when they don't. Inside a
+                    // horizontal ScrollView, macOS exposed only some chips to accessibility.
+                    ViewThatFits(in: .horizontal) {
+                        device_chips
+                        ScrollView(.horizontal) { device_chips }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, 8)
                 }
                 if let reason = model.local_computer_unavailable,
                    model.enabled_device_list.contains(where: { $0.id == model.local_device_id }) {
@@ -169,6 +147,38 @@ struct ChatView: View {
 
     private var conversation_title: String {
         model.conversation_list.first { $0.id == model.conversation.id }?.title ?? ""
+    }
+
+    private var device_chips: some View {
+        HStack {
+            ForEach(model.device_list) { device in
+                let enabled = model.enabled_device_list.contains(device)
+                Button {
+                    Task { await model.toggle_device(device) }
+                } label: {
+                    HStack(spacing: 4) {
+                        if enabled {
+                            Image(systemName: "checkmark").fontWeight(.semibold)
+                        }
+                        Text(device.name)
+                        if computer_unavailable(device) != nil {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundStyle(.orange)
+                        }
+                    }
+                    .font(.caption)
+                    .padding(.horizontal, 10).padding(.vertical, 6)
+                    .background(.quaternary, in: Capsule())
+                    .opacity(enabled ? 1 : 0.4)
+                }
+                .buttonStyle(.plain)
+                .disabled(model.saving_devices || model.conversation.id.isEmpty)
+                .accessibilityValue(enabled ? "Enabled" : "Disabled")
+                .accessibilityHint(computer_unavailable(device) ?? "")
+                .help(computer_unavailable(device) ?? "")
+            }
+        }
+        .padding(.horizontal)
     }
 
     private var new_conversation_button: some View {
