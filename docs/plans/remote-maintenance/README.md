@@ -7,7 +7,8 @@ SSH-independent updates and recovery still need a defined workflow and verificat
 
 - [x] Verify a MacBook-to-mini shell command through Agent without SSH.
 - [ ] Make existing device commands easy to invoke from development tools without scratch scripts.
-- [ ] Add authenticated file transfer for builds and diagnostic files.
+- [ ] Add authenticated file transfer for builds and diagnostic files
+      ([file transfer plan](../file-transfer/README.md)).
 - [ ] Stage and verify a signed app update before replacing the installed app.
 - [ ] Run update and restart work outside the process being replaced.
 - [ ] Reconnect and report the installed version and health; recover the prior build on failure.

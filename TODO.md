@@ -36,4 +36,4 @@
 - allow editing the human readable names for devices we register
   defaulting to the name reported by the device is perfect, if we aren't doing that ensure we are
 
-- add a device api + tool call for uploading files to a device
+- file transfer between devices (upload and download): see `docs/plans/file-transfer/README.md`
