@@ -67,7 +67,8 @@ Chat works from any connected device, even when no devices are enabled for tools
 conversations started from this device. Automatic reasoning uses the model’s default. Existing conversations are unchanged.
 
 Conversation text can be selected and copied, and code blocks have a Copy button. On the Mac, typing from
-non-text controls focuses the composer, Shift+Esc focuses it, Enter sends, and Shift+Enter adds a newline;
+non-text controls focuses the composer, Shift+Esc focuses it, Tab moves on to the next control, Enter sends,
+and Shift+Enter adds a newline;
 on iPhone, Return adds a newline, the send button sends, and dragging the conversation down hides the keyboard.
 With an empty textbox during a task, the send icon becomes Stop. On the Mac, ⌘. also stops the reply and
 ⌘F searches conversation titles.
