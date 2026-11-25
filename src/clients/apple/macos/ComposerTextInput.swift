@@ -94,6 +94,15 @@ private final class ComposerEditor: NSTextView {
         }
     }
 
+    // Tab moves focus, as in Messages, instead of typing a tab into the message.
+    override func insertTab(_ sender: Any?) {
+        window?.selectNextKeyView(sender)
+    }
+
+    override func insertBacktab(_ sender: Any?) {
+        window?.selectPreviousKeyView(sender)
+    }
+
     override func keyDown(with event: NSEvent) {
         let is_return = event.keyCode == 36 || event.keyCode == 76
         if is_return && !event.modifierFlags.contains(.shift) && !hasMarkedText() {
