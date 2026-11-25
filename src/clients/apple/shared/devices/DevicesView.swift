@@ -142,7 +142,10 @@ struct DevicesView: View {
                     Text(device.address)
                     Text(device.id)
                 } label: {
+                    // Named on the icon too: after a redraw, macOS can name the menu from the
+                    // symbol ("More") instead of its accessibility label.
                     Image(systemName: "ellipsis.circle")
+                        .accessibilityLabel("Options for \(device.name)")
                 }
                 .menuIndicator(.hidden)
                 .fixedSize()
