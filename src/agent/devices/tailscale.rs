@@ -15,7 +15,17 @@ pub(super) fn status() -> io::Result<Status> {
 }
 
 pub(super) fn identify(address: SocketAddr) -> io::Result<String> {
-    let result = command(&["whois", "--json", &address.ip().to_string()])?;
+    // whois also exits nonzero for an address that is not on the tailnet, so only blame Tailscale
+    // when its own status says it is not running.
+    let result = command(&["whois", "--json", &address.ip().to_string()]).map_err(|error| {
+        if error.to_string() != "Tailscale is unavailable" {
+            return error;
+        }
+        match status() {
+            Ok(_) => io::Error::other("No device on your tailnet has this address"),
+            Err(status_error) => status_error,
+        }
+    })?;
     let id = result["Node"]["StableID"]
         .as_str()
         .filter(|id| !id.is_empty())
