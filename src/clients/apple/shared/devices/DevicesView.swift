@@ -6,6 +6,7 @@ struct DevicesView: View {
     @State private var invitation = ""
     @State private var showing_manual = false
     @State private var removal: DeviceRemoval?
+    @State private var refreshing = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -84,15 +85,47 @@ struct DevicesView: View {
                     Button("Done") { dismiss() }
                 }
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Refresh", systemImage: "arrow.clockwise") {
-                        Task { await model.perform(["operation": "refresh"]) }
-                    }.disabled(model.busy)
+                    refresh_button
                 }
             }
         }
         .task { await model.poll() }
         #if os(macOS)
         .frame(minWidth: 540, minHeight: 440)
+        #endif
+    }
+
+    /// A scan usually finishes in well under a second; the spinner stays up for at least half a
+    /// second so the tap visibly did something.
+    @ViewBuilder private var refresh_button: some View {
+        let button = Button("Refresh", systemImage: "arrow.clockwise") {
+            Task {
+                refreshing = true
+                async let shown: Void? = try? Task.sleep(for: .milliseconds(500))
+                await model.perform(["operation": "refresh"])
+                _ = await shown
+                refreshing = false
+            }
+        }
+        .disabled(model.busy)
+        #if os(macOS)
+        // The Mac toolbar shows the title too, so the spinner covers the button instead of
+        // replacing it and Done keeps its place.
+        button
+            .disabled(refreshing)
+            .opacity(refreshing ? 0 : 1)
+            .overlay {
+                if refreshing {
+                    ProgressView().controlSize(.small).accessibilityLabel("Refreshing")
+                }
+            }
+        #else
+        // iOS toolbars ignore modifiers on the item, so the spinner takes the icon's place.
+        if refreshing {
+            ProgressView().accessibilityLabel("Refreshing")
+        } else {
+            button
+        }
         #endif
     }
 
