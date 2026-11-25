@@ -45,12 +45,28 @@ pub(crate) fn install() -> io::Result<()> {
         .stdout(Stdio::null())
         .stderr(Stdio::null())
         .status()?;
-    let status = Command::new("/bin/launchctl")
-        .args(["bootstrap", &domain])
-        .arg(&path)
-        .status()?;
-    if !status.success() {
-        return Err(io::Error::other("Could not start Agent's central service."));
+    // bootout returns before launchd finishes removing the old job; bootstrapping during that
+    // window fails with "Bootstrap failed: 5: Input/output error". Retry briefly instead of
+    // leaving the service stopped.
+    let mut started = false;
+    for _ in 0..10 {
+        let status = Command::new("/bin/launchctl")
+            .args(["bootstrap", &domain])
+            .arg(&path)
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()?;
+        if status.success() {
+            started = true;
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_secs(1));
+    }
+    if !started {
+        return Err(io::Error::other(
+            "Could not start Agent's central service. Run `launchctl bootstrap gui/$(id -u) \
+             ~/Library/LaunchAgents/com.iamnoah.agent.service.plist` to retry.",
+        ));
     }
     println!(
         "Central service installed. It starts at login and continues while the screen is locked."
