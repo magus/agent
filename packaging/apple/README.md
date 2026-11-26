@@ -30,6 +30,16 @@ npm --prefix assets/markdown test
 These check formatting, unsafe content, and incremental parsing. Test selection, scrolling, and
 appearance in the native apps as well.
 
+## Chat regression checks
+
+On an Apple silicon Mac, run the native chat checks after installing the renderer dependencies.
+The simulator check uses a booted iPhone. Both run the production views with local test data.
+
+```sh
+python3 src/clients/apple/tests/ChatReviewTests/run.py macos
+python3 src/clients/apple/tests/ChatReviewTests/run.py simulator
+```
+
 ## iPhone Simulator
 
 Install iOS support in Xcode, then build

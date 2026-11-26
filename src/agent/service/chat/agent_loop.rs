@@ -160,13 +160,19 @@ impl AgentLoop {
             self.running.store(false, Ordering::SeqCst);
             return Err(error);
         }
+        // The transcript already contains the receipt. A catalog write failure cannot reject it.
+        if let Err(error) = self.policy.record_user_message(&self.id, &prompt) {
+            eprintln!("Could not update conversation activity. {error}");
+        }
+
         self.run_id.fetch_add(1, Ordering::SeqCst);
         self.stopped.store(false, Ordering::SeqCst);
         let agent = self.clone();
         std::thread::spawn(move || {
-            if let Err(error) = agent.run(settings) {
-                agent.report(error.to_string());
-            }
+            let result = agent.run(settings, |request, operation, preview| {
+                agent.request_response(request, operation, preview)
+            });
+            agent.finish_response(result);
             let _ = agent.change(|conversation| {
                 conversation.finish_unsubmitted_calls();
                 Ok(())
@@ -258,8 +264,11 @@ impl AgentLoop {
         Ok(())
     }
 
-    pub(super) fn run(&self, settings: crate::protocol::ModelSettings) -> io::Result<()> {
-        let _preview_cleanup = ResponsePreviewCleanup(self);
+    fn run(
+        &self,
+        settings: crate::protocol::ModelSettings,
+        respond: impl Fn(Value, &'static str, bool) -> io::Result<Value>,
+    ) -> io::Result<()> {
         let mut next_search = None;
         let mut image_reply = None;
         loop {
@@ -300,7 +309,7 @@ impl AgentLoop {
                 }));
                 request["tool_choice"] = json!("none");
             }
-            let mut response = self.request_response(request, operation, !image_search)?;
+            let mut response = respond(request, operation, !image_search)?;
             self.check_stopped()?;
             let output_list = response["output"]
                 .as_array_mut()
@@ -379,6 +388,20 @@ impl AgentLoop {
                     self.execute_call(call)?;
                 }
             }
+        }
+    }
+
+    fn finish_response(&self, result: io::Result<()>) {
+        let Err(error) = result else { return };
+        let stopped = self.stopped.load(Ordering::SeqCst);
+        let message = error.to_string();
+
+        if let Err(error) = self.change(|conversation| {
+            let mut preview = self.response_preview.lock().unwrap();
+            conversation.interrupt(&mut preview, stopped, message);
+            Ok(())
+        }) {
+            eprintln!("Could not save interrupted response. {error}");
         }
     }
 
@@ -612,43 +635,6 @@ enum ModelEvent {
     Completed(io::Result<Value>),
 }
 
-struct ResponsePreviewCleanup<'a>(&'a AgentLoop);
-
-impl Drop for ResponsePreviewCleanup<'_> {
-    // A completed reply clears the preview first; anything left streamed before a stop or failure.
-    // Keep it visible instead of erasing text the user already read, and mark a message that got no
-    // reply at all. Neither is sent to the model.
-    fn drop(&mut self) {
-        let stopped = self.0.stopped.load(Ordering::SeqCst);
-        let mut unfinished = self
-            .0
-            .response_preview
-            .lock()
-            .unwrap()
-            .take_unfinished(stopped);
-        let awaiting_reply = self
-            .0
-            .conversation
-            .lock()
-            .unwrap()
-            .entry_list
-            .last()
-            .is_some_and(|entry| entry.role == "You");
-        if unfinished.is_empty() && awaiting_reply {
-            unfinished.push(ResponsePreview::unanswered(stopped));
-        }
-        if !unfinished.is_empty()
-            && let Err(error) = self.0.change(|conversation| {
-                conversation.entry_list.extend(unfinished);
-                Ok(())
-            })
-        {
-            eprintln!("Could not keep unfinished reply. {error}");
-        }
-        self.0.revision.fetch_add(1, Ordering::Relaxed);
-    }
-}
-
 fn parse_call(call: &Value) -> io::Result<(String, Value)> {
     let arguments: Value = serde_json::from_str(call["arguments"].as_str().unwrap_or(""))?;
     let host = arguments["host"]
@@ -703,6 +689,65 @@ fn tool_summary(tool: &Value, result: &Value) -> io::Result<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn empty_completed_response_and_interruptions_survive_reload() {
+        use crate::client::chat::conversation_notice;
+
+        let directory = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        let store = Arc::new(ServiceStore::load(directory.clone()).unwrap());
+        let client = Arc::new(ChatGptClient::new_central(&directory).unwrap());
+        let devices = ToolConnection::new(crate::devices::device_with_kind("service", false));
+
+        for (case, notice, marker) in [
+            ("complete", "", None),
+            (
+                "failed",
+                "Model offline",
+                Some("*Interrupted before replying.*"),
+            ),
+            ("stopped", "Stopped.", Some("*Stopped before replying.*")),
+        ] {
+            let id = uuid::Uuid::new_v4().to_string();
+            store.create("mac", &id, case).unwrap();
+            let path = store.conversation_dir(&id).unwrap();
+            let agent = AgentLoop::load(
+                client.clone(),
+                devices.clone(),
+                path.clone(),
+                store.clone(),
+                id,
+            )
+            .unwrap();
+            agent
+                .change(|conversation| {
+                    conversation.entry_list.push(Entry::text("You", "Question"));
+                    conversation.status = "Running".into();
+                    Ok(())
+                })
+                .unwrap();
+            agent.stopped.store(case == "stopped", Ordering::SeqCst);
+
+            let result = agent.run(Default::default(), |_, _, _| {
+                if case == "failed" {
+                    return Err(io::Error::other("Model offline"));
+                }
+                Ok(json!({"status":"completed", "output":[]}))
+            });
+            agent.finish_response(result);
+
+            let saved = Conversation::load(&path).unwrap();
+            let visible = agent.view();
+            assert_eq!(conversation_notice(&visible.status), notice);
+            assert_eq!(saved.status, visible.status);
+            let expected: Vec<_> = ["Question"].into_iter().chain(marker).collect();
+            for entries in [&saved.entry_list, &visible.entry_list] {
+                let text_list: Vec<_> = entries.iter().map(|entry| entry.text.as_str()).collect();
+                assert_eq!(text_list, expected, "{case}");
+            }
+        }
+        std::fs::remove_dir_all(directory).unwrap();
+    }
 
     #[test]
     fn tool_calls_require_a_host_and_cannot_request_pairing() {

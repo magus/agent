@@ -140,17 +140,11 @@ impl CentralService {
                     model,
                     reasoning_effort,
                 };
-                let result =
-                    self.loop_for(&id)?
-                        .start(sender, message_id, prompt.clone(), settings);
+                let result = self
+                    .loop_for(&id)?
+                    .start(sender, message_id, prompt, settings);
                 match result {
-                    Ok(()) => {
-                        // The message is already running; a failed list update must not report it as rejected.
-                        if let Err(error) = self.store.record_user_message(&id, &prompt) {
-                            eprintln!("Could not update conversation activity. {error}");
-                        }
-                        Ok(json!({"accepted":true}))
-                    }
+                    Ok(()) => Ok(json!({"accepted":true})),
                     Err(error) => Ok(json!({"accepted":false, "error":error.to_string()})),
                 }
             }
@@ -221,5 +215,62 @@ impl CentralService {
             ));
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retry_keeps_newer_conversation_first_after_restart() {
+        let directory = std::env::temp_dir().join(uuid::Uuid::new_v4().to_string());
+        let store = ServiceStore::load(directory.clone()).unwrap();
+        let first = "10000000-0000-4000-8000-000000000000";
+        let second = "90000000-0000-4000-8000-000000000000";
+        let receipt = "a0000000-0000-4000-8000-000000000000";
+        let sender = Target {
+            id: "mac".into(),
+            name: "Mac".into(),
+        };
+
+        store.create(&sender.id, first, "First").unwrap();
+        store.record_user_message(first, "Saved question").unwrap();
+        store.create(&sender.id, second, "Second").unwrap();
+        store.record_user_message(second, "Newer question").unwrap();
+        let first_sequence = store.get(first).unwrap().activity_sequence;
+
+        // The service persisted the message before the client lost its acknowledgment.
+        let path = store
+            .conversation_dir(first)
+            .unwrap()
+            .join("conversation.json");
+        let transcript = json!({
+            "id":first, "model":"model", "status":"Ready", "input_list":[],
+            "entry_list":[{"role":"You","text":"Saved question","message_id":receipt,"sender":sender}]
+        });
+        std::fs::write(path, serde_json::to_vec(&transcript).unwrap()).unwrap();
+        drop(store);
+
+        let store = Arc::new(ServiceStore::load(directory.clone()).unwrap());
+        let client = Arc::new(ChatGptClient::new_central(&directory).unwrap());
+        let devices = ToolConnection::new(crate::devices::device_with_kind("service", false));
+        let service = CentralService::new(store.clone(), client, devices);
+        let send = json!({"action":"send", "id":first, "message_id":receipt, "model":"model", "prompt":"Saved question"});
+        assert_eq!(
+            service.handle(sender.clone(), send).unwrap(),
+            json!({"accepted":true})
+        );
+        assert_eq!(store.get(first).unwrap().activity_sequence, first_sequence);
+
+        let listing = service.handle(sender, json!({"action":"list"})).unwrap();
+        let ids: Vec<_> = listing["conversation_list"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|record| record["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(ids, [second, first]);
+        std::fs::remove_dir_all(directory).unwrap();
     }
 }

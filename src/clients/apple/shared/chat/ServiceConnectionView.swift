@@ -17,8 +17,13 @@ struct ServiceConnectionView: View {
                             let connected = model.service_host == service.id
                             Button {
                                 Task {
-                                    await model.perform(["action": "connect", "host": service.id])
-                                    if model.service_host == service.id { dismiss() }
+                                    error = nil
+                                    do {
+                                        try await model.connect(to: service.id)
+                                        dismiss()
+                                    } catch {
+                                        self.error = error.localizedDescription
+                                    }
                                 }
                             } label: {
                                 HStack {
@@ -59,8 +64,8 @@ struct ServiceConnectionView: View {
 
                     if connecting { ProgressView() }
                     if requested { Text("Approve this device on the service host.").foregroundStyle(.secondary) }
-                    if let error { Text(error).foregroundStyle(.red) }
                 }
+                if let error { Text(error).foregroundStyle(.red).textSelection(.enabled) }
             }
             .formStyle(.grouped)
             .navigationTitle("Connect to service")

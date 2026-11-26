@@ -13,3 +13,6 @@ pub(super) use remote_request::response;
 
 #[cfg(test)]
 mod device_service_tests;
+
+#[cfg(test)]
+pub(crate) use device_service_tests::device_with_kind;

@@ -26,6 +26,7 @@ final class ChatModel {
     var default_model_settings = ModelSettings()
     /// True once the client has a first answer (or error) from the service.
     private(set) var loaded = false
+    var showing_device_chips = false
     var local_device_id = ""
     /// Why computer use is off on this device, with the fix; nil when it is available.
     var local_computer_unavailable: String?
@@ -113,7 +114,10 @@ final class ChatModel {
 
     func refresh() async {
         do {
-            let snapshot = try await client.request(["action": "snapshot"], as: Snapshot.self)
+            let snapshot = try await client.request([
+                "action": "snapshot",
+                "showing_device_chips": showing_device_chips,
+            ], as: Snapshot.self)
             if let selecting_conversation_id, snapshot.conversation.id != selecting_conversation_id {
                 return
             }
@@ -204,6 +208,12 @@ final class ChatModel {
             self.error = error.localizedDescription
         }
         selecting_conversation_id = nil
+        await refresh()
+    }
+
+    func connect(to host: String) async throws {
+        try await client.perform(["action": "connect", "host": host])
+        error = nil
         await refresh()
     }
 

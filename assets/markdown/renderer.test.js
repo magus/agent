@@ -1,5 +1,4 @@
 import { imageUrlOptions } from './imageUrlOptions.js';
-import { keepLineBreaks } from './lineBreaks.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -70,24 +69,20 @@ test('only embeds search images selected by the reply', () => {
   }
 });
 
-test('single newlines stay line breaks outside code, without changing block structure', () => {
+test('preserves code text and normalizes prose line endings', () => {
   const renderer = createHtmlRenderer({ controls: false, lineNumbers: false });
+  const render = (source) => renderer.render(source, false).html;
   try {
-    const lines = renderer.render(keepLineBreaks('1\n2\n3'), false).html;
-    assert.equal((lines.match(/<br/g) ?? []).length, 2);
-
-    const fixture = readFileSync(new URL('./fixtures/markdown.md', import.meta.url), 'utf8');
-    const plain = renderer.render(fixture, false).html;
-    const kept = renderer.render(keepLineBreaks(fixture), false).html;
-    for (const tag of ['h1', 'ul', 'ol', 'blockquote', 'pre', 'table', 'th', 'td', 'li']) {
-      const count = (html) => (html.match(new RegExp(`<${tag}[ >]`, 'g')) ?? []).length;
-      assert.equal(count(kept), count(plain), tag);
+    const block_list = [
+      '    alpha\n    beta',
+      '> ```\n> alpha\n> beta\n> ```',
+    ];
+    for (const source of block_list) {
+      assert.match(render(source), />alpha\nbeta\n<\/span>/);
     }
-
-    const code = '```\nfirst\nsecond\n```';
-    assert.equal(keepLineBreaks(code), code);
-    assert.equal(keepLineBreaks('a  \nb'), 'a  \nb');
-    assert.equal(keepLineBreaks('a\n\nb'), 'a\n\nb');
+    assert.match(render('A multiline `alpha\nbeta` span'), />alpha beta<\/code>/);
+    assert.match(render('one\ntwo'), />one\ntwo<\/p>/);
+    assert.equal(render('one\r\ntwo'), render('one\ntwo'));
   } finally {
     renderer.dispose();
   }

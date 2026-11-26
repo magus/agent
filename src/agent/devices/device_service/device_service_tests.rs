@@ -17,7 +17,7 @@ fn device(name: &str) -> Arc<DeviceService> {
     device_with_kind(name, true)
 }
 
-fn device_with_kind(name: &str, execution_device: bool) -> Arc<DeviceService> {
+pub(crate) fn device_with_kind(name: &str, execution_device: bool) -> Arc<DeviceService> {
     let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join(".scratch/2026-11-08-03-10-device-tools")
         .join(uuid::Uuid::new_v4().to_string());

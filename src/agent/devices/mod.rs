@@ -15,3 +15,6 @@ pub(crate) use device_service::DeviceService;
 #[cfg(not(target_os = "ios"))]
 pub(crate) use local_client::{run as run_client, run_at as run_client_at, start as start_admin};
 pub(crate) use tool_connection::ToolConnection;
+
+#[cfg(test)]
+pub(crate) use device_service::device_with_kind;

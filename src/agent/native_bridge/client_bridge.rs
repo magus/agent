@@ -79,22 +79,35 @@ fn dispatch(request: Request) -> io::Result<Value> {
         .ok_or_else(|| io::Error::other("Client is not initialized"))?;
     let chat = &client.chat;
     match request {
-        Request::Snapshot => Ok(json!({
-            "conversation": chat.view(),
-            "pending": chat.pending_delivery(),
-            "notice": conversation_notice(&chat.view().status),
-            "conversation_list": chat.conversation_list(),
-            "service_list": chat.service_list(),
-            "service_host": chat.service_host().unwrap_or_default(),
-            "running": chat.running(),
-            "revision": chat.revision(),
-            "target_list": chat.target_list(),
-            "available_target_list": chat.available_target_list(),
-            "default_target_list": chat.default_target_list(),
-            "model_settings": chat.model_settings(),
-            "local_device_id": client.devices.local_target().id,
-            "local_unavailable_tools": client.devices.unavailable_tools(),
-        })),
+        Request::Snapshot {
+            showing_device_chips,
+        } => {
+            let service_host = chat.service_host().unwrap_or_default();
+            let available_target_list = chat.available_target_list();
+            let local_device_id = client.devices.local_target().id;
+            let unavailable_tools = visible_unavailable_tools(
+                showing_device_chips && !service_host.is_empty(),
+                &available_target_list,
+                &local_device_id,
+                || client.devices.unavailable_tools(),
+            );
+            Ok(json!({
+                "conversation": chat.view(),
+                "pending": chat.pending_delivery(),
+                "notice": conversation_notice(&chat.view().status),
+                "conversation_list": chat.conversation_list(),
+                "service_list": chat.service_list(),
+                "service_host": service_host,
+                "running": chat.running(),
+                "revision": chat.revision(),
+                "target_list": chat.target_list(),
+                "available_target_list": available_target_list,
+                "default_target_list": chat.default_target_list(),
+                "model_settings": chat.model_settings(),
+                "local_device_id": local_device_id,
+                "local_unavailable_tools": unavailable_tools,
+            }))
+        }
         Request::SearchSources {
             service,
             id,
@@ -235,7 +248,10 @@ enum Request {
         directory: String,
         name: String,
     },
-    Snapshot,
+    Snapshot {
+        #[serde(default)]
+        showing_device_chips: bool,
+    },
     SearchSources {
         service: String,
         id: String,
@@ -329,4 +345,46 @@ enum AccountAction {
     Status,
     CheckModel,
     SignOut,
+}
+
+fn visible_unavailable_tools(
+    showing_device_chips: bool,
+    target_list: &[crate::protocol::Target],
+    local_device_id: &str,
+    check: impl FnOnce() -> Value,
+) -> Value {
+    let shows_local_chip = target_list
+        .iter()
+        .any(|target| target.id == local_device_id);
+    if !showing_device_chips || !shows_local_chip {
+        return json!({});
+    }
+    check()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snapshot_only_checks_permissions_for_a_visible_local_chip() {
+        let local = crate::protocol::Target {
+            id: "mac".into(),
+            name: "Mac".into(),
+        };
+        let targets = [local];
+        for (visible, list) in [(false, targets.as_slice()), (true, &[][..])] {
+            let result =
+                visible_unavailable_tools(visible, list, "mac", || panic!("unexpected probe"));
+            assert_eq!(result, json!({}));
+        }
+        let result = visible_unavailable_tools(true, &targets, "other", || panic!("remote chip"));
+        assert_eq!(result, json!({}));
+
+        let reason = json!({"computer": "Permission missing"});
+        assert_eq!(
+            visible_unavailable_tools(true, &targets, "mac", || reason.clone()),
+            reason
+        );
+    }
 }

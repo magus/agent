@@ -5,6 +5,10 @@ main { overflow-wrap: anywhere; display: flow-root; }
 main > :first-child { margin-top: 0; }
 main > :last-child { margin-bottom: 0; }
 p, ul, ol, blockquote, pre, table { margin-block: 0.75em; }
+/* Words keeps a newline for both soft and hard breaks. Display that newline once. */
+p, li { white-space: pre-line; }
+:is(p, li) br[data-markdown="br"] { display: none; }
+
 h1, h2, h3, h4, h5, h6 { line-height: 1.2; margin-block: 0.9em 0.4em; }
 h1 { font-size: 1.6em; }
 h2 { font-size: 1.4em; }
@@ -25,7 +29,7 @@ hr { border: 0; border-top: 1px solid GrayText; }
 [data-markdown="code-header"] button { appearance: none; border: 0; background: none; padding: 0.2em 0; font: inherit; color: LinkText; cursor: pointer; }
 .document-view [data-markdown="code-header"] { display: none; }
 
-.document-view body { overflow: visible; }
+.document-view body, .document-view [data-markdown="code-block"] { overflow: visible; }
 .document-view pre { overflow: visible; width: max-content; min-width: 100%; box-sizing: border-box; font-size: 1rem; }
 .document-view pre code { font-size: inherit; }
 

@@ -73,6 +73,8 @@ struct ChatView: View {
                     .frame(maxWidth: 900, alignment: .leading)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 8)
+                    .onAppear { model.showing_device_chips = true }
+                    .onDisappear { model.showing_device_chips = false }
                 }
                 if let reason = model.local_computer_unavailable,
                    model.enabled_device_list.contains(where: { $0.id == model.local_device_id }) {
@@ -134,6 +136,15 @@ struct ChatView: View {
             .toolbar {
                 ToolbarItem(placement: .primaryAction) { new_conversation_button }
                 ToolbarItem(placement: .primaryAction) { settings_menu }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if let error = model.error {
+                Text(error)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+                    .padding(.horizontal)
             }
         }
         .task {
@@ -372,9 +383,6 @@ struct ChatView: View {
         VStack(alignment: .trailing, spacing: 10) {
             if model.pending != nil && model.pending_entry == nil && !model.sending {
                 Button("Open unsent message") { Task { await model.open_pending() } }
-            }
-            if let error = model.error {
-                Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled)
             }
             ModelControls(model: model)
 

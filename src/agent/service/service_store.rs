@@ -39,7 +39,10 @@ impl ServiceStore {
             .values()
             .cloned()
             .collect();
-        list.sort_by_key(|record| std::cmp::Reverse(record.last_activity));
+        // Records saved before sequence numbers existed keep their timestamp order.
+        list.sort_by_key(|record| {
+            std::cmp::Reverse((record.activity_sequence, record.last_activity))
+        });
         list
     }
 
@@ -48,11 +51,13 @@ impl ServiceStore {
     pub fn record_user_message(&self, id: &str, prompt: &str) -> io::Result<()> {
         let mut state = self.state.lock().unwrap();
         let mut updated = state.clone();
+        let sequence = state.next_activity_sequence()?;
         let record = updated
             .conversation_by_id
             .get_mut(id)
             .ok_or_else(|| io::Error::new(io::ErrorKind::NotFound, "Conversation not found"))?;
-        record.last_activity = now();
+        record.last_activity = unix_seconds();
+        record.activity_sequence = sequence;
         if record.title == crate::protocol::default_title(id)
             && let Some(title) = crate::protocol::title_from_message(prompt)
         {
@@ -108,7 +113,8 @@ impl ServiceStore {
             title: title.into(),
             creator: sender.into(),
             allowed_target_list,
-            last_activity: now(),
+            last_activity: unix_seconds(),
+            activity_sequence: state.next_activity_sequence()?,
         };
         let mut updated = state.clone();
         updated.conversation_by_id.insert(id.into(), record.clone());
@@ -223,11 +229,23 @@ struct State {
     default_target_list_by_device: BTreeMap<String, Vec<String>>,
 }
 
-fn now() -> u64 {
+impl State {
+    fn next_activity_sequence(&self) -> io::Result<u64> {
+        self.conversation_by_id
+            .values()
+            .map(|record| record.activity_sequence)
+            .max()
+            .unwrap_or_default()
+            .checked_add(1)
+            .ok_or_else(|| io::Error::other("Conversation activity counter exhausted"))
+    }
+}
+
+fn unix_seconds() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_secs())
         .unwrap_or_default()
+        .as_secs()
 }
 
 fn unique_targets(mut target_list: Vec<String>) -> Vec<String> {
@@ -258,9 +276,9 @@ mod tests {
     fn messages_order_the_list_and_title_untitled_conversations() {
         let directory = std::env::temp_dir().join(format!("agent-order-{}", uuid::Uuid::new_v4()));
         let store = ServiceStore::load(directory.clone()).unwrap();
-        let older = uuid::Uuid::new_v4().to_string();
-        let newer = uuid::Uuid::new_v4().to_string();
-        let named = uuid::Uuid::new_v4().to_string();
+        let older = String::from("10000000-0000-4000-8000-000000000000");
+        let newer = String::from("50000000-0000-4000-8000-000000000000");
+        let named = String::from("90000000-0000-4000-8000-000000000000");
         store
             .create("macbook", &older, &crate::protocol::default_title(&older))
             .unwrap();
@@ -271,11 +289,9 @@ mod tests {
         // Records written before ordering existed have no activity time and sort last.
         for (id, time) in [(&older, 0), (&newer, 10), (&named, 20)] {
             let mut state = store.state.lock().unwrap();
-            state
-                .conversation_by_id
-                .get_mut(id.as_str())
-                .unwrap()
-                .last_activity = time;
+            let record = state.conversation_by_id.get_mut(id.as_str()).unwrap();
+            record.last_activity = time;
+            record.activity_sequence = 0;
         }
         let order = |store: &ServiceStore| {
             store
@@ -293,6 +309,14 @@ mod tests {
             .record_user_message(&older, "Check the mini's disk space\nthen report")
             .unwrap();
         store.record_user_message(&named, "Something else").unwrap();
+        // Force identical persisted clock readings, regardless of test runtime.
+        {
+            let mut state = store.state.lock().unwrap();
+            for id in [&older, &named] {
+                state.conversation_by_id.get_mut(id).unwrap().last_activity = 30;
+            }
+            store.save(&state).unwrap();
+        }
         drop(store);
 
         let store = ServiceStore::load(directory.clone()).unwrap();
@@ -301,7 +325,10 @@ mod tests {
             "Check the mini's disk space"
         );
         assert_eq!(store.get(&named).unwrap().title, "Named");
-        assert_eq!(order(&store).last(), Some(&newer));
+        assert_eq!(
+            order(&store),
+            vec![named.clone(), older.clone(), newer.clone()]
+        );
         // A retried create still succeeds after the title changed.
         assert!(
             store

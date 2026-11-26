@@ -1,3 +1,4 @@
+use super::response_preview::ResponsePreview;
 use crate::protocol::{Entry, Target};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -38,6 +39,24 @@ impl Conversation {
         conversation.restore_search_images();
         conversation.finish_unsubmitted_calls();
         Ok(conversation)
+    }
+
+    pub(super) fn interrupt(
+        &mut self,
+        preview: &mut ResponsePreview,
+        stopped: bool,
+        message: String,
+    ) {
+        let mut unfinished = preview.take_unfinished(stopped);
+        let awaiting_reply = self
+            .entry_list
+            .last()
+            .is_some_and(|entry| entry.role == "You");
+        if unfinished.is_empty() && awaiting_reply {
+            unfinished.push(ResponsePreview::unanswered(stopped));
+        }
+        self.entry_list.extend(unfinished);
+        self.status = message;
     }
 
     fn restore_search_entries(&mut self) {

@@ -7,8 +7,7 @@ final class DesktopService {
     private var process: Process?
     private var desired_running = false
     private var restart_task: Task<Void, Never>?
-    private var started_at = Date.distantPast
-    private var restart_delay: Duration = .seconds(2)
+    private var restart_delay = DesktopRestartDelay()
 
     func start() throws {
         desired_running = true
@@ -42,25 +41,23 @@ final class DesktopService {
         process.standardInput = FileHandle.nullDevice
         process.standardOutput = log
         process.standardError = log
+        let started_at = ContinuousClock.now
         process.terminationHandler = { [weak self] child in
             Task { @MainActor [weak self] in
                 guard let self, self.process?.processIdentifier == child.processIdentifier else { return }
                 self.process = nil
-                self.schedule_restart()
+                self.schedule_restart(runtime: started_at.duration(to: .now))
             }
         }
         try process.run()
         self.process = process
-        started_at = Date()
     }
 
     // Retry quickly after a helper that ran for a while; back off while it keeps failing at once,
     // for example when another copy of Agent already serves the desktop.
-    private func schedule_restart() {
+    private func schedule_restart(runtime: Duration? = nil) {
         guard desired_running else { return }
-        if Date().timeIntervalSince(started_at) > 30 { restart_delay = .seconds(2) }
-        let delay = restart_delay
-        restart_delay = min(restart_delay * 2, .seconds(60))
+        let delay = restart_delay.next(afterRunningFor: runtime)
         restart_task?.cancel()
         restart_task = Task { [weak self] in
             do { try await Task.sleep(for: delay) }

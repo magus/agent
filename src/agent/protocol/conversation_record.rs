@@ -8,9 +8,16 @@ pub(crate) struct ConversationRecord {
     #[serde(default, skip_serializing_if = "super::ModelSettings::is_default")]
     pub model_settings: super::ModelSettings,
     pub allowed_target_list: Vec<String>,
-    /// Unix seconds of creation or the latest user message; orders the conversation list.
+    /// Unix seconds of creation or the latest user message.
     #[serde(default)]
     pub last_activity: u64,
+    /// Service-wide order, including messages accepted within the same clock tick.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub activity_sequence: u64,
+}
+
+fn is_zero(value: &u64) -> bool {
+    *value == 0
 }
 
 /// Title a client gives a new conversation before it has a message.
